@@ -9,7 +9,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/greg-the-coder/PDE-OpenShift-Reference-Beta.git
+    repoURL: https://github.com/coder/PDE-OpenShift-Reference-Beta.git
     targetRevision: main
     path: manifests/postgres
   destination:
