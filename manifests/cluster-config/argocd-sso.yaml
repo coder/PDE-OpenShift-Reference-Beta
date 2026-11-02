@@ -1,0 +1,70 @@
+# Argo CD (OpenShift GitOps) SSO via the Keycloak `demo` realm (ADR D1).
+#
+# Dexless native OIDC: we configure argocd-cm directly through the ArgoCD CR's
+# spec.extraConfig (no Dex broker — one less component, cleaner for air-gap).
+# The client secret is NOT embedded; Argo resolves `$<secret>:<key>` at runtime
+# from the Secret below (which carries the required
+# `app.kubernetes.io/part-of: argocd` label so Argo loads it).
+#
+# RBAC: Keycloak `admins` group -> Argo `role:admin`; every other authenticated
+# user -> read-only. scopes '[groups]' tells Argo to match on the `groups`
+# claim (emitted by the per-client group mapper in the realm template — we do
+# NOT request a `groups` OIDC *scope*, which is not registered in this realm).
+#
+# This patches the operator-managed ArgoCD CR via server-side apply, scoped to
+# only spec.extraConfig + spec.rbac — editing the CR is the documented way to
+# customize the default OpenShift GitOps instance, so this does not fight the
+# operator.
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: keycloak-argocd-oidc-secret
+  namespace: openshift-gitops
+  labels:
+    app.kubernetes.io/part-of: pde-openshift-reference
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: keycloak-realm-kv
+  target:
+    name: keycloak-argocd-oidc-secret
+    creationPolicy: Owner
+    template:
+      metadata:
+        labels:
+          # Required for Argo CD to load this Secret for `$name:key` refs.
+          app.kubernetes.io/part-of: argocd
+  data:
+    - secretKey: clientSecret
+      remoteRef:
+        key: keycloak-realm-secrets
+        property: argocd_client_secret
+---
+apiVersion: argoproj.io/v1beta1
+kind: ArgoCD
+metadata:
+  name: openshift-gitops
+  namespace: openshift-gitops
+  annotations:
+    # Server-side apply, scoped to this resource, with force-conflicts so Argo
+    # takes ownership of spec.rbac.{defaultPolicy,policy} (defaulted by the
+    # operator's field manager on creation). We only own extraConfig + rbac.
+    argocd.argoproj.io/sync-options: ServerSideApply=true,Force=true
+spec:
+  extraConfig:
+    oidc.config: |
+      name: Keycloak
+      issuer: https://keycloak.apps.cluster.rh-pde.coderdemo.io/realms/demo
+      clientID: argocd
+      clientSecret: $keycloak-argocd-oidc-secret:clientSecret
+      requestedScopes:
+        - openid
+        - profile
+        - email
+  rbac:
+    defaultPolicy: role:readonly
+    scopes: "[groups]"
+    policy: |
+      g, admins, role:admin

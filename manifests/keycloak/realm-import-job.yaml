@@ -108,6 +108,7 @@ spec:
                 -e "s|__GITEA_CLIENT_SECRET__|$gitea_client_secret|g" \
                 -e "s|__OPENSHIFT_CLIENT_SECRET__|$openshift_client_secret|g" \
                 -e "s|__GRAFANA_CLIENT_SECRET__|$grafana_client_secret|g" \
+                -e "s|__ARGOCD_CLIENT_SECRET__|$argocd_client_secret|g" \
                 /template/realm-demo.yaml > "$out"
               if grep -q "__[A-Z_]*__" "$out"; then
                 echo "FATAL: unsubstituted placeholder remains" >&2
