@@ -11,7 +11,7 @@
 | GitOps | Red Hat OpenShift GitOps (Argo CD) | app‑of‑apps from `gitops/apps/` |
 | Operators | cert‑manager, **OpenShift AI (RHOAI)**, External Secrets, CNPG | installed at bootstrap (`gitops/operators/`) |
 | Identity | Keycloak (RHBK) — realm `demo` | single IdP (D1) |
-| SCM | in‑cluster Git (Gitea / GitLab‑operator) | (D2) |
+| SCM | in‑cluster Git — **Gitea** (Helm) | (D2) SSO login via Keycloak; also Coder's external Git‑auth provider |
 | Coder | Helm via GitOps | OIDC → Keycloak; AI Gateway (`CODER_AI_GATEWAY_*`) |
 | Model serving | RHOAI KServe + vLLM `ServingRuntime` | Qwen2.5‑7B on A10G (D3/D4) |
 | Agents | Coder Agents (chatd) in‑product | sovereign (RHOAI) + optional Bedrock |
@@ -35,3 +35,14 @@ Coder Agents chat → AI Gateway → {RHOAI in‑cluster | Bedrock (connected)} 
 agent edits code in the workspace → push to in‑cluster Git`.
 
 _Diagrams: `docs/images/` (generated in Phase 8 — connected + air‑gap views)._
+
+## Gitea OAuth relationships (D2)
+
+Two distinct, independent OAuth/OIDC links:
+- **Gitea → Keycloak** (user login): Gitea runs an OIDC login source against the
+  `demo` realm (`gitea` client); users auto‑provision on first SSO login.
+- **Coder → Gitea** (workspace Git auth): Coder is registered as an OAuth2 app
+  *inside* Gitea so workspaces obtain Gitea tokens via Coder external auth
+  (`CODER_EXTERNAL_AUTH_0_*`, type `gitea`). The client id/secret are generated
+  by Gitea and stored in the in‑cluster Secret `coder/coder-gitea-oauth`
+  (wired by Coder in Phase 3). Neither secret is committed (D5).
