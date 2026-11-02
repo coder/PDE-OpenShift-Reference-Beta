@@ -11,13 +11,16 @@ on OpenShift + OpenShift AI (RHOAI)**. The same manifests run in two modes:
 | Images | ghcr + internal registry | **internal registry only** (oc‑mirror) |
 | Model serving | RHOAI (in‑cluster) **+** optional AWS Bedrock | **RHOAI only** (in‑cluster vLLM) |
 | Identity | Keycloak (RHBK) | Keycloak (RHBK), in‑cluster |
-| SCM | in‑cluster Git (Gitea/GitLab‑operator) | in‑cluster Git |
+| SCM | in‑cluster Git (**Gitea**) | in‑cluster Git (**Gitea**) |
 | Workspace egress | allowed | **default‑deny** (NetworkPolicy / Agent Firewall) |
 | Secrets | generated in‑cluster / provided at deploy — **never in git** | same |
 
-> **Status: scaffold (Phase 0–1).** Structure, docs, and GitOps root only — no
-> workloads deployed yet. Build phases and the full design live in the plan; the
-> locked decisions are in [`docs/decisions.md`](docs/decisions.md).
+> **Status: identity layer landed (Phases 0–2a).** GitOps bootstrap + operator
+> subscriptions (Phase 1) and the Keycloak/RHBK identity stack — `demo` realm,
+> OIDC SSO (OpenShift + Argo CD), in‑cluster secret generation (ESO) — are in
+> `main`. Upcoming: Gitea SCM (2b), Coder (P3), RHOAI model serving (P4),
+> workspace templates (P5), air‑gap mode (P6). Locked decisions:
+> [`docs/decisions.md`](docs/decisions.md).
 
 ## Design in one screen
 - **Single IdP** — Keycloak/RHBK only. (D1)
@@ -36,9 +39,12 @@ on OpenShift + OpenShift AI (RHOAI)**. The same manifests run in two modes:
 make help          # list targets
 make deploy        # one-command deploy (connected mode)  [Phase 7]
 make deploy MODE=airgap
+make creds         # print demo logins (personas + Keycloak admin), read live from the cluster
 make reset         # return to a clean demo state
 make destroy
 ```
+`make creds` works as soon as the identity layer is deployed; see
+[`docs/deploy.md`](docs/deploy.md#credentials-retrieving-the-generated-demo-logins).
 
 ## Repository layout
 ```
