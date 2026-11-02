@@ -45,7 +45,9 @@ encrypted. **Rejected:** **Sealed Secrets / SOPS** — they still commit *cipher
 to permanent public history (and sealed values are useless to anyone cloning the
 repo). In **connected** mode ESO may optionally be backed by AWS Secrets Manager —
 still only references in git; in **air‑gap** mode ESO generators (or an in‑cluster
-Vault) keep it dependency‑free. A `gitleaks` CI gate enforces "no secrets in git."
+Vault) keep it dependency‑free. Enforcement uses **GitHub‑native secret scanning
++ push protection** (repo setting), consistent with the rest of the Coder org —
+no CI secret‑scanner action is maintained in‑repo.
 
 ## D6 — Coder Agents demoed in‑product ✅
 **Picked:** the headline flow is Coder Agents (Tasks/chat) in the Coder UI. The
