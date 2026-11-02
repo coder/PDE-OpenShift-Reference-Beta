@@ -1,0 +1,25 @@
+# OpenShift AI (RHOAI). Provides KServe + vLLM ServingRuntime for in-cluster model
+# serving (D3). The DataScienceCluster (KServe RawDeployment, no Serverless/ServiceMesh)
+# is created by the model-serving Argo app, not here.
+apiVersion: v1
+kind: Namespace
+metadata: { name: redhat-ods-operator }
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: rhods-operator
+  namespace: redhat-ods-operator
+spec: {}
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: rhods-operator
+  namespace: redhat-ods-operator
+spec:
+  channel: stable-3.x
+  name: rhods-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic

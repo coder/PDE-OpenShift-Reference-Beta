@@ -8,7 +8,7 @@
 - `oc`, `aws`, `terraform` on PATH (`make preflight` checks).
 - A **Red Hat pull secret** (for RHOAI/RHBK operator images).
 - A **Coder license** key (needed at the air‑gap/Agents phase).
-- `base_domain` for the new DNS (default `pde.coderdemo.io`; see `terraform/terraform.tfvars.example`).
+- `base_domain` for the new DNS (default `rh-pde.coderdemo.io`; see `terraform/terraform.tfvars.example`).
 
 ## Deploy
 ```bash

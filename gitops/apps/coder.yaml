@@ -1,0 +1,30 @@
+# Coder (Helm via GitOps): OIDC->Keycloak, AI Gateway, routes/TLS.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: coder
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/coder/PDE-OpenShift-Reference-Beta.git
+    targetRevision: main
+    path: manifests/coder
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: coder
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 8
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

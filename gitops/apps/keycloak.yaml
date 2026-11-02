@@ -1,0 +1,30 @@
+# RHBK Keycloak + realm 'demo' (secret-free template; creds injected from ESO-generated Secret).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: keycloak
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/coder/PDE-OpenShift-Reference-Beta.git
+    targetRevision: main
+    path: manifests/keycloak
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: keycloak
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 8
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

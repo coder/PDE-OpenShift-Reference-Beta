@@ -1,0 +1,30 @@
+# In-cluster Git (Gitea / GitLab-operator) for the demo repos.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: scm
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/coder/PDE-OpenShift-Reference-Beta.git
+    targetRevision: main
+    path: manifests/scm
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: scm
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 8
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

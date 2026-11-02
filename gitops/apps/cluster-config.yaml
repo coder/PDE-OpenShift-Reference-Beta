@@ -1,0 +1,30 @@
+# Cluster-wide config: OAuth/Keycloak IdP, Argo RBAC (committed so SSO admins work), namespaces/RBAC.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-config
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/coder/PDE-OpenShift-Reference-Beta.git
+    targetRevision: main
+    path: manifests/cluster-config
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openshift-gitops
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 8
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

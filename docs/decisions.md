@@ -45,7 +45,9 @@ encrypted. **Rejected:** **Sealed Secrets / SOPS** — they still commit *cipher
 to permanent public history (and sealed values are useless to anyone cloning the
 repo). In **connected** mode ESO may optionally be backed by AWS Secrets Manager —
 still only references in git; in **air‑gap** mode ESO generators (or an in‑cluster
-Vault) keep it dependency‑free. A `gitleaks` CI gate enforces "no secrets in git."
+Vault) keep it dependency‑free. Enforcement uses **GitHub‑native secret scanning
++ push protection** (repo setting), consistent with the rest of the Coder org —
+no CI secret‑scanner action is maintained in‑repo.
 
 ## D6 — Coder Agents demoed in‑product ✅
 **Picked:** the headline flow is Coder Agents (Tasks/chat) in the Coder UI. The
@@ -70,7 +72,7 @@ else gets folded in or dropped. **Why:** the prior repo drifted to 33 markdown f
 ### Logistics (locked 2026‑11‑02)
 - Repo: `greg-the-coder/PDE-OpenShift-Reference-Beta` (public fork).
 - AWS sandbox **342934376218**, us‑east‑1. New DNS drops `rhsummit`:
-  `base_domain = pde.coderdemo.io` → apps at `*.apps.cluster.pde.coderdemo.io`
+  `base_domain = rh-pde.coderdemo.io` → apps at `*.apps.cluster.rh-pde.coderdemo.io`
   (confirm exact base domain before cluster provisioning).
 - Air‑gap: **simulated‑on‑connected first**; fully‑disconnected path documented.
 - Cloud LLM: **Bedrock kept as an optional connected‑mode provider**; air‑gap = RHOAI only.
