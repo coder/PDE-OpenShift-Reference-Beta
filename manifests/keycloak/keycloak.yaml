@@ -1,0 +1,54 @@
+# Keycloak (Red Hat Build of Keycloak) instance for the demo realm.
+#
+# Single-replica, single-Postgres, demo-grade — optimized for "comes up clean
+# every time, easy to reset" over production HA. Production would set
+# instances: 3 + Postgres replication.
+#
+# Authored for the RHBK v26 operator (CRD k8s.keycloak.org/v2alpha1):
+#   - spec.hostname.hostname is the FULL URL in v26 (v22 took a bare host).
+#   - spec.hostname.strict: false keeps hostname handling lenient for the demo.
+#   - proxy-headers is passed via spec.additionalOptions (works across v22..v26)
+#     so Keycloak trusts the X-Forwarded-* headers from the edge-terminating
+#     OpenShift Route and renders issuer URLs as https.
+#   - ingress.enabled: false — we own the Route (route.yaml); otherwise the
+#     operator spawns a duplicate Route stuck in HostAlreadyClaimed.
+#   - http.httpEnabled: true — the Route terminates TLS; Keycloak serves plain
+#     HTTP on 8080 behind it.
+#
+# Admin bootstrap: the operator creates an `admin` user with a random password
+# in the `keycloak-initial-admin` Secret on first start. Read it with:
+#   oc get secret keycloak-initial-admin -n keycloak \
+#     -o jsonpath='{.data.password}' | base64 -d
+# Demo personas (alice/bob/demoadm) come from the KeycloakRealmImport, NOT here.
+---
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: Keycloak
+metadata:
+  name: keycloak
+  namespace: keycloak
+  labels:
+    app.kubernetes.io/name: keycloak
+    app.kubernetes.io/part-of: pde-openshift-reference
+spec:
+  instances: 1
+  db:
+    vendor: postgres
+    host: keycloak-db-rw.keycloak.svc
+    port: 5432
+    database: keycloak
+    usernameSecret:
+      name: keycloak-db-app
+      key: username
+    passwordSecret:
+      name: keycloak-db-app
+      key: password
+  hostname:
+    hostname: https://keycloak.apps.cluster.rh-pde.coderdemo.io
+    strict: false
+  ingress:
+    enabled: false
+  http:
+    httpEnabled: true
+  additionalOptions:
+    - name: proxy-headers
+      value: xforwarded

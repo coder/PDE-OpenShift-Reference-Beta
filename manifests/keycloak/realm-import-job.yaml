@@ -1,0 +1,123 @@
+# Keycloak realm-import render Job (ADR D5).
+#
+# Renders the secret-free template (realm-template-configmap.yaml) by injecting
+# the ESO-generated credentials from the `keycloak-realm-secrets` Secret, then
+# applies the resulting KeycloakRealmImport. The RHBK operator imports the realm.
+#
+# Runs as an Argo CD Sync hook every sync (hook-delete-policy BeforeHookCreation
+# recreates it), so a fresh deploy / `make reset` always re-seeds the realm from
+# the freshly generated passwords. The rendered manifest with real secrets lives
+# only in the pod's /tmp (ephemeral); nothing beyond keycloak-realm-secrets is
+# ever persisted, and nothing secret is written to git.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: keycloak-realm-render
+  namespace: keycloak
+  labels:
+    app.kubernetes.io/part-of: pde-openshift-reference
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: keycloak-realm-render
+  namespace: keycloak
+  labels:
+    app.kubernetes.io/part-of: pde-openshift-reference
+rules:
+  - apiGroups: [""]
+    resources: ["secrets", "configmaps"]
+    verbs: ["get", "list"]
+  - apiGroups: ["k8s.keycloak.org"]
+    resources: ["keycloakrealmimports"]
+    verbs: ["get", "list", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: keycloak-realm-render
+  namespace: keycloak
+  labels:
+    app.kubernetes.io/part-of: pde-openshift-reference
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: keycloak-realm-render
+subjects:
+  - kind: ServiceAccount
+    name: keycloak-realm-render
+    namespace: keycloak
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-realm-import
+  namespace: keycloak
+  labels:
+    app.kubernetes.io/part-of: pde-openshift-reference
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  backoffLimit: 10
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/part-of: pde-openshift-reference
+    spec:
+      serviceAccountName: keycloak-realm-render
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: render
+          image: registry.redhat.io/openshift4/ose-cli:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          # Generated credentials arrive as env vars (keys = Secret keys).
+          envFrom:
+            - secretRef:
+                name: keycloak-realm-secrets
+          volumeMounts:
+            - name: template
+              mountPath: /template
+              readOnly: true
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              # Substitute placeholders with the generated values. Passwords use
+              # the safe set !#%*-_=+:? and client secrets are alphanumeric —
+              # no '|', '&', '\' or '/' — so sed with a '|' delimiter and
+              # literal replacements is safe. xtrace stays OFF.
+              out=/tmp/realm-demo.yaml
+              sed \
+                -e "s|__ALICE_PW__|$alice_password|g" \
+                -e "s|__BOB_PW__|$bob_password|g" \
+                -e "s|__DEMOADM_PW__|$demoadm_password|g" \
+                -e "s|__CODER_CLIENT_SECRET__|$coder_client_secret|g" \
+                -e "s|__GITEA_CLIENT_SECRET__|$gitea_client_secret|g" \
+                -e "s|__OPENSHIFT_CLIENT_SECRET__|$openshift_client_secret|g" \
+                -e "s|__GRAFANA_CLIENT_SECRET__|$grafana_client_secret|g" \
+                -e "s|__ARGOCD_CLIENT_SECRET__|$argocd_client_secret|g" \
+                /template/realm-demo.yaml > "$out"
+              if grep -q "__[A-Z_]*__" "$out"; then
+                echo "FATAL: unsubstituted placeholder remains" >&2
+                grep -n "__[A-Z_]*__" "$out" >&2 || true
+                exit 1
+              fi
+              echo "Applying rendered KeycloakRealmImport (secrets injected in-cluster)..."
+              oc apply -f "$out"
+      volumes:
+        - name: template
+          configMap:
+            name: keycloak-realm-template

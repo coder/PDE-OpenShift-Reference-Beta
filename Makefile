@@ -6,8 +6,9 @@
 #
 # Usage: make help
 
-SHELL := /bin/bash
-MODE  ?= connected          # connected | airgap
+SHELL       := /bin/bash
+MODE        ?= connected    # connected | airgap
+KEYCLOAK_NS ?= keycloak
 .DEFAULT_GOAL := help
 
 ## help: list targets
@@ -37,8 +38,29 @@ mirror:
 status:
 	@echo "[status] TODO(P1): oc get applications -n openshift-gitops; oc get inferenceservice -A"
 
+## creds: print demo login credentials (personas + Keycloak admin), read live from the cluster
+creds:
+	@set -euo pipefail; \
+	command -v oc >/dev/null || { echo "MISSING: oc"; exit 1; }; \
+	oc get secret keycloak-realm-secrets -n $(KEYCLOAK_NS) >/dev/null 2>&1 || { \
+	  echo "keycloak-realm-secrets not found in ns '$(KEYCLOAK_NS)' — is identity deployed?"; exit 1; }; \
+	get() { oc get secret "$$1" -n $(KEYCLOAK_NS) -o jsonpath="{.data.$$2}" | base64 -d; }; \
+	echo "=== Demo personas (realm: demo) ==="; \
+	printf '  %-9s %-10s %s\n' USER ROLE PASSWORD; \
+	printf '  %-9s %-10s %s\n' alice   developer "$$(get keycloak-realm-secrets alice_password)"; \
+	printf '  %-9s %-10s %s\n' bob     auditor   "$$(get keycloak-realm-secrets bob_password)"; \
+	printf '  %-9s %-10s %s\n' demoadm admin     "$$(get keycloak-realm-secrets demoadm_password)"; \
+	echo; \
+	echo "=== Keycloak admin console ==="; \
+	kc_host=$$(oc get route keycloak -n $(KEYCLOAK_NS) -o jsonpath='{.spec.host}' 2>/dev/null || true); \
+	[ -n "$$kc_host" ] && echo "  URL:      https://$$kc_host/admin" || echo "  URL:      (keycloak Route not found yet)"; \
+	if oc get secret keycloak-initial-admin -n $(KEYCLOAK_NS) >/dev/null 2>&1; then \
+	  printf '  %-9s %s\n' user     "$$(get keycloak-initial-admin username)"; \
+	  printf '  %-9s %s\n' password "$$(get keycloak-initial-admin password)"; \
+	else echo "  (keycloak-initial-admin not created yet)"; fi
+
 ## destroy: tear down the cluster + infra
 destroy:
 	@echo "[destroy] TODO(P1): terraform destroy (+ openshift-install destroy)"
 
-.PHONY: help preflight deploy reset mirror status destroy
+.PHONY: help preflight deploy reset mirror status creds destroy

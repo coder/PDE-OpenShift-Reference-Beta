@@ -25,6 +25,20 @@ What `deploy` will do (phased):
 5. **P5** workspace templates from internal‑registry images; validate a Coder Agents run.
 6. **P6** (airgap) egress default‑deny + internal‑registry‑only + Coder air‑gapped bundle.
 
+## Credentials (retrieving the generated demo logins)
+Per **D5**, no secret is ever committed. The demo personas' passwords are
+generated **in‑cluster** at deploy time (ESO `Password` generators) and live
+only in `Secret/keycloak-realm-secrets` (ns `keycloak`); Keycloak itself stores
+only hashes. Retrieve the human logins — the demo team needs these — with:
+```bash
+make creds     # personas (alice/bob/demoadm) + Keycloak admin console, read live
+```
+`make creds` reads straight from the cluster and prints nothing to disk/git.
+It requires **cluster‑admin** (`kube:admin` at install; `demoadm` works once the
+realm is up). The machine OIDC client secrets (`*_client_secret`) are wired
+automatically and are intentionally **not** printed. Override the namespace with
+`make creds KEYCLOAK_NS=<ns>` if needed.
+
 ## Reset (between demos)
 ```bash
 make reset     # delete demo workspaces/chats + re-seed Git projects + re-seed identity; infra untouched

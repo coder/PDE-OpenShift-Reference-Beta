@@ -1,0 +1,23 @@
+# Bind the Keycloak `admins` group to cluster-admin.
+#
+# When a demo user in the Keycloak `admins` group (e.g. demoadm) signs in via
+# the OIDC IdP (oauth-cluster.yaml), OCP creates/updates an OpenShift Group
+# named `admins` from the `groups` claim and places the user in it. This binding
+# then grants that group cluster-admin.
+#
+# Until a user logs in the Group may not exist; RBAC binds by name, so a missing
+# subject is harmless (ignored at authz time).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: keycloak-admins-cluster-admin
+  labels:
+    app.kubernetes.io/part-of: pde-openshift-reference
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: admins
