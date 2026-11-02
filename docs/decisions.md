@@ -70,7 +70,7 @@ else gets folded in or dropped. **Why:** the prior repo drifted to 33 markdown f
 ### Logistics (locked 2026‑11‑02)
 - Repo: `greg-the-coder/PDE-OpenShift-Reference-Beta` (public fork).
 - AWS sandbox **342934376218**, us‑east‑1. New DNS drops `rhsummit`:
-  `base_domain = pde.coderdemo.io` → apps at `*.apps.cluster.pde.coderdemo.io`
+  `base_domain = rh-pde.coderdemo.io` → apps at `*.apps.cluster.rh-pde.coderdemo.io`
   (confirm exact base domain before cluster provisioning).
 - Air‑gap: **simulated‑on‑connected first**; fully‑disconnected path documented.
 - Cloud LLM: **Bedrock kept as an optional connected‑mode provider**; air‑gap = RHOAI only.

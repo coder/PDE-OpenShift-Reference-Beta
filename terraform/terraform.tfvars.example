@@ -8,8 +8,8 @@ aws_profile = "342934376218_AWSAdministratorAccess"   # AWS sandbox 342934376218
 # --- DNS / naming (new names, no longer referencing rhsummit) ---
 # Parent public zone is coderdemo.io (delegated). The cluster installs under
 # <cluster_name>.<base_domain>; apps at *.apps.<cluster_name>.<base_domain>.
-base_domain  = "pde.coderdemo.io"    # CONFIRM before provisioning
-cluster_name = "cluster"             # -> apps.cluster.pde.coderdemo.io
+base_domain  = "rh-pde.coderdemo.io"    # CONFIRM before provisioning
+cluster_name = "cluster"             # -> apps.cluster.rh-pde.coderdemo.io
 
 # --- Run mode ---
 # deploy_mode = "connected"   # connected | airgap  (also settable via `make deploy MODE=...`)
