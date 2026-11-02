@@ -1,0 +1,210 @@
+# Keycloak demo-realm import — SECRET-FREE TEMPLATE (ADR D5).
+#
+# Persona passwords and OIDC client secrets are NOT in this file. They are
+# generated in-cluster by ESO Password generators (realm-secrets.yaml), surface
+# as the `keycloak-realm-secrets` Secret, and are injected into this template at
+# apply time by the keycloak-realm-import render Job (realm-import-job.yaml).
+# The placeholders below (__ALICE_PW__, __CODER_CLIENT_SECRET__, ...) are
+# replaced in-cluster; the rendered KeycloakRealmImport never touches git.
+#
+# To change identities/clients, edit this template. To rotate credentials, run
+# `make reset` (regenerates the ESO Passwords) — this file does not change.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm-template
+  namespace: keycloak
+  labels:
+    app.kubernetes.io/part-of: pde-openshift-reference
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+data:
+  realm-demo.yaml: |
+    ---
+    apiVersion: k8s.keycloak.org/v2alpha1
+    kind: KeycloakRealmImport
+    metadata:
+      name: demo-realm
+      namespace: keycloak
+      labels:
+        app.kubernetes.io/name: keycloak-realm-demo
+        app.kubernetes.io/part-of: pde-openshift-reference
+    spec:
+      keycloakCRName: keycloak
+      realm:
+        realm: demo
+        enabled: true
+        displayName: "PDE OpenShift Reference — Demo Realm"
+        displayNameHtml: "<strong>PDE OpenShift Reference</strong> Demo Realm"
+
+        # Known, reset-friendly personas only — no self-registration.
+        registrationAllowed: false
+        rememberMe: false
+        verifyEmail: false
+        loginWithEmailAllowed: true
+        duplicateEmailsAllowed: false
+        resetPasswordAllowed: false
+
+        # Demo-grade session lengths — long enough to not time out mid-demo.
+        accessTokenLifespan: 3600
+        ssoSessionIdleTimeout: 28800
+        ssoSessionMaxLifespan: 36000
+
+        # ─── Groups ──────────────────────────────────────────────────────
+        # One group per role tier; consumers (Coder/OCP/Grafana) map group ->
+        # role without encoding role logic per consumer.
+        groups:
+          - name: developers   # alice  — Coder Member
+          - name: auditors     # bob    — Coder Auditor (read-only)
+          - name: admins       # demoadm — Coder Owner + OCP cluster-admin
+
+        # ─── Demo users ──────────────────────────────────────────────────
+        users:
+          - username: alice
+            enabled: true
+            email: alice@demo.rh-pde.coderdemo.io
+            firstName: Alice
+            lastName: Anderson
+            emailVerified: true
+            credentials:
+              - type: password
+                value: "__ALICE_PW__"
+                temporary: false
+            groups:
+              - /developers
+          - username: bob
+            enabled: true
+            email: bob@demo.rh-pde.coderdemo.io
+            firstName: Bob
+            lastName: Brown
+            emailVerified: true
+            credentials:
+              - type: password
+                value: "__BOB_PW__"
+                temporary: false
+            groups:
+              - /auditors
+          # Admin-tier persona — elevates to OCP cluster-admin + Coder Owner.
+          # Deliberately NOT in /developers; the owner/admin roles supersede it.
+          - username: demoadm
+            enabled: true
+            email: demoadm@demo.rh-pde.coderdemo.io
+            firstName: Demo
+            lastName: Admin
+            emailVerified: true
+            credentials:
+              - type: password
+                value: "__DEMOADM_PW__"
+                temporary: false
+            groups:
+              - /admins
+
+        # ─── OIDC clients ────────────────────────────────────────────────
+        clients:
+          - clientId: coder
+            name: "Coder (Workspace Platform)"
+            protocol: openid-connect
+            enabled: true
+            clientAuthenticatorType: client-secret
+            secret: "__CODER_CLIENT_SECRET__"
+            publicClient: false
+            standardFlowEnabled: true
+            directAccessGrantsEnabled: false
+            serviceAccountsEnabled: false
+            redirectUris:
+              - "https://coder.apps.cluster.rh-pde.coderdemo.io/api/v2/users/oidc/callback"
+            webOrigins:
+              - "https://coder.apps.cluster.rh-pde.coderdemo.io"
+            attributes:
+              "post.logout.redirect.uris": "https://coder.apps.cluster.rh-pde.coderdemo.io/*"
+            protocolMappers:
+              - name: groups
+                protocol: openid-connect
+                protocolMapper: oidc-group-membership-mapper
+                consentRequired: false
+                config:
+                  "claim.name": "groups"
+                  "full.path": "false"
+                  "id.token.claim": "true"
+                  "access.token.claim": "true"
+                  "userinfo.token.claim": "true"
+
+          - clientId: gitea
+            name: "Gitea (in-cluster SCM)"
+            protocol: openid-connect
+            enabled: true
+            clientAuthenticatorType: client-secret
+            secret: "__GITEA_CLIENT_SECRET__"
+            publicClient: false
+            standardFlowEnabled: true
+            directAccessGrantsEnabled: false
+            serviceAccountsEnabled: false
+            # Gitea OIDC (generic OpenID Connect auth source named "keycloak"):
+            # callback is /user/oauth2/<AuthName>/callback.
+            redirectUris:
+              - "https://gitea.apps.cluster.rh-pde.coderdemo.io/user/oauth2/keycloak/callback"
+            webOrigins:
+              - "https://gitea.apps.cluster.rh-pde.coderdemo.io"
+            protocolMappers:
+              - name: groups
+                protocol: openid-connect
+                protocolMapper: oidc-group-membership-mapper
+                consentRequired: false
+                config:
+                  "claim.name": "groups"
+                  "full.path": "false"
+                  "id.token.claim": "true"
+                  "access.token.claim": "true"
+                  "userinfo.token.claim": "true"
+
+          - clientId: openshift
+            name: "OpenShift Console"
+            protocol: openid-connect
+            enabled: true
+            clientAuthenticatorType: client-secret
+            secret: "__OPENSHIFT_CLIENT_SECRET__"
+            publicClient: false
+            standardFlowEnabled: true
+            directAccessGrantsEnabled: false
+            serviceAccountsEnabled: false
+            # Path segment after /oauth2callback/ matches the identityProvider
+            # name `keycloak` in manifests/cluster-config/oauth-cluster.yaml.
+            redirectUris:
+              - "https://oauth-openshift.apps.cluster.rh-pde.coderdemo.io/oauth2callback/keycloak"
+            protocolMappers:
+              - name: groups
+                protocol: openid-connect
+                protocolMapper: oidc-group-membership-mapper
+                consentRequired: false
+                config:
+                  "claim.name": "groups"
+                  "full.path": "false"
+                  "id.token.claim": "true"
+                  "access.token.claim": "true"
+                  "userinfo.token.claim": "true"
+
+          - clientId: grafana
+            name: "Grafana (Observability)"
+            protocol: openid-connect
+            enabled: true
+            clientAuthenticatorType: client-secret
+            secret: "__GRAFANA_CLIENT_SECRET__"
+            publicClient: false
+            standardFlowEnabled: true
+            directAccessGrantsEnabled: false
+            serviceAccountsEnabled: false
+            redirectUris:
+              - "https://grafana.apps.cluster.rh-pde.coderdemo.io/login/generic_oauth"
+            webOrigins:
+              - "https://grafana.apps.cluster.rh-pde.coderdemo.io"
+            protocolMappers:
+              - name: groups
+                protocol: openid-connect
+                protocolMapper: oidc-group-membership-mapper
+                consentRequired: false
+                config:
+                  "claim.name": "groups"
+                  "full.path": "false"
+                  "id.token.claim": "true"
+                  "access.token.claim": "true"
+                  "userinfo.token.claim": "true"

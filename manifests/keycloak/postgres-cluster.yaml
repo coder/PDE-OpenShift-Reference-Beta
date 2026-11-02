@@ -1,0 +1,32 @@
+# CNPG Postgres cluster backing Keycloak (ADR D2/D5: operator-managed creds).
+#
+# Single instance — demo-grade, reset-friendly (not HA). CNPG auto-generates
+# the `keycloak-db-app` Secret (keys: username, password, uri, host, ...); the
+# Keycloak CR reads username/password from it. No credential ever in git.
+#
+# Same CNPG operator as Coder's Postgres (manifests/postgres/) — one data-layer
+# shape across the platform.
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: keycloak-db
+  namespace: keycloak
+  labels:
+    app.kubernetes.io/name: keycloak-db
+    app.kubernetes.io/part-of: pde-openshift-reference
+spec:
+  instances: 1
+  storage:
+    size: 5Gi
+  bootstrap:
+    initdb:
+      database: keycloak
+      owner: keycloak
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"

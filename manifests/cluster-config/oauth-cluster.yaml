@@ -1,0 +1,43 @@
+# Cluster OAuth — single IdP: the in-cluster Keycloak `demo` realm (ADR D1).
+#
+# Demo personas (alice/bob/demoadm) sign in via OIDC. The `groups` claim carries
+# Keycloak group membership (developers/auditors/admins); OCP materializes an
+# OpenShift Group per claim value, so `admins` lines up with the cluster-admin
+# ClusterRoleBinding in cluster-admin-binding.yaml.
+#
+# Argo claims only spec.identityProviders via server-side apply; the installer
+# retains everything else on the OAuth CR.
+#
+# Naming: `name: keycloak` -> callback /oauth2callback/keycloak, which must match
+# the `openshift` client redirectUri in manifests/keycloak/realm-template-configmap.yaml.
+# mappingMethod: claim -> first identity wins; collisions surface as login errors.
+apiVersion: config.openshift.io/v1
+kind: OAuth
+metadata:
+  name: cluster
+spec:
+  identityProviders:
+    - name: keycloak
+      mappingMethod: claim
+      type: OpenID
+      openID:
+        clientID: openshift
+        clientSecret:
+          # Materialized in openshift-config by the ExternalSecret in
+          # keycloak-oidc-externalsecret.yaml (shared value from the generated
+          # keycloak-realm-secrets). No secret value in git (ADR D5).
+          name: keycloak-openshift-oidc-secret
+        issuer: https://keycloak.apps.cluster.rh-pde.coderdemo.io/realms/demo
+        claims:
+          preferredUsername:
+            - preferred_username
+          name:
+            - name
+            - preferred_username
+          email:
+            - email
+          groups:
+            - groups
+        # extraScopes intentionally omitted — `groups` is a client protocol
+        # mapper, not a registered Keycloak scope; requesting it errors. The
+        # mapper still emits `groups` in userinfo, which OCP reads above.
