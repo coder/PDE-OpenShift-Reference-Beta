@@ -42,3 +42,15 @@ terraform.rc
 # Optional: ignore plan files saved before destroying Terraform configuration
 # Uncomment the line below if you want to ignore planout files.
 # planout
+# ── Secrets / credentials (D5: NO secret values in this public repo) ──
+*.pem
+*.key
+*.p12
+.env
+.env.*
+!.env.example
+kubeconfig
+*kubeconfig*
+auth/
+# OpenShift installer scratch (never commit)
+terraform/.cluster/

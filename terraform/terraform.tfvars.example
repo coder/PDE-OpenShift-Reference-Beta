@@ -1,0 +1,19 @@
+# Example Terraform variables. Copy to terraform.tfvars (gitignored) and edit.
+# terraform.tfvars is NEVER committed (contains environment specifics; see D5).
+
+# --- Cloud / account ---
+aws_region  = "us-east-1"
+aws_profile = "342934376218_AWSAdministratorAccess"   # AWS sandbox 342934376218
+
+# --- DNS / naming (new names, no longer referencing rhsummit) ---
+# Parent public zone is coderdemo.io (delegated). The cluster installs under
+# <cluster_name>.<base_domain>; apps at *.apps.<cluster_name>.<base_domain>.
+base_domain  = "pde.coderdemo.io"    # CONFIRM before provisioning
+cluster_name = "cluster"             # -> apps.cluster.pde.coderdemo.io
+
+# --- Run mode ---
+# deploy_mode = "connected"   # connected | airgap  (also settable via `make deploy MODE=...`)
+
+# --- Secrets are NOT set here (D5) ---
+# Red Hat pull secret + Coder license are provided at deploy time via env/make,
+# not through tfvars. Demo/OIDC secrets are generated in-cluster (ESO generators).
