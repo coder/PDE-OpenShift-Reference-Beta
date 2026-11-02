@@ -1,0 +1,33 @@
+# Gitea supporting config — CNPG DB, Route, ESO secrets, and the Coder-OAuth
+# registration Job (ADR D2/D5). Kept separate from the Helm chart app (`scm`,
+# gitops/apps/scm.yaml) at an earlier sync-wave so the database and credential
+# Secrets exist before the chart installs.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: scm-config
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/coder/PDE-OpenShift-Reference-Beta.git
+    targetRevision: main
+    path: manifests/scm
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: scm
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 8
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

@@ -1,17 +1,91 @@
-# In-cluster Git (Gitea / GitLab-operator) for the demo repos.
+# Gitea in-cluster SCM via the official Helm chart (ADR D2).
+#
+# Chart source (gitea 12.7.0 / Gitea 1.27.0). Supporting resources (CNPG DB,
+# Route, ESO secrets, Coder-OAuth Job) are a separate app, `scm-config`
+# (gitops/apps/scm-config.yaml), at an earlier sync-wave so the DB + secrets
+# exist first. Wave 2 here so the chart installs after that config lands.
+#
+# Secrets (ADR D5): admin + OIDC client secret come from ESO-managed existing
+# Secrets (gitea-admin / gitea-oidc); the DB password is injected as env
+# valueFrom the CNPG `gitea-db-app` Secret. Nothing secret is in these values.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: scm
   namespace: openshift-gitops
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "2"
 spec:
   project: default
   source:
-    repoURL: https://github.com/coder/PDE-OpenShift-Reference-Beta.git
-    targetRevision: main
-    path: manifests/scm
+    repoURL: https://dl.gitea.com/charts
+    chart: gitea
+    targetRevision: 12.7.0
+    helm:
+      releaseName: gitea
+      values: |
+        fullnameOverride: gitea
+        replicaCount: 1
+        image:
+          rootless: true
+        # Demo-grade single instance: no built-in HA Postgres / cache.
+        postgresql-ha:
+          enabled: false
+        postgresql:
+          enabled: false
+        valkey-cluster:
+          enabled: false
+        valkey:
+          enabled: false
+        persistence:
+          enabled: true
+          size: 5Gi
+        service:
+          http:
+            port: 3000
+        # We manage the OpenShift Route ourselves (manifests/scm/route.yaml).
+        ingress:
+          enabled: false
+        route:
+          enabled: false
+        gitea:
+          admin:
+            existingSecret: gitea-admin
+            email: "gitea@demo.rh-pde.coderdemo.io"
+            passwordMode: keepUpdated
+          # SSO login source: Keycloak demo realm (clientID "gitea").
+          oauth:
+            - name: keycloak
+              provider: openidConnect
+              existingSecret: gitea-oidc
+              autoDiscoverUrl: https://keycloak.apps.cluster.rh-pde.coderdemo.io/realms/demo/.well-known/openid-configuration
+          config:
+            server:
+              ROOT_URL: https://gitea.apps.cluster.rh-pde.coderdemo.io/
+              DOMAIN: gitea.apps.cluster.rh-pde.coderdemo.io
+              SSH_DOMAIN: gitea.apps.cluster.rh-pde.coderdemo.io
+            database:
+              DB_TYPE: postgres
+              HOST: gitea-db-rw.scm.svc:5432
+              NAME: gitea
+            service:
+              DISABLE_REGISTRATION: true
+            oauth2_client:
+              ENABLE_AUTO_REGISTRATION: true
+              USERNAME: nickname
+              ACCOUNT_LINKING: auto
+          # DB credentials from the CNPG-managed Secret (no secret in git).
+          additionalConfigFromEnvs:
+            - name: GITEA__database__USER
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-db-app
+                  key: username
+            - name: GITEA__database__PASSWD
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-db-app
+                  key: password
   destination:
     server: https://kubernetes.default.svc
     namespace: scm
