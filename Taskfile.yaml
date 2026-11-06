@@ -1,0 +1,111 @@
+# =============================================================================
+# PDE-OpenShift-Reference — task runner (go-task / https://taskfile.dev).
+#
+# Scaffold stage: tasks are wired with their intended contract but most are
+# stubbed (echo + TODO) until the matching build phase lands. Nothing here
+# mutates a cluster yet — except `creds`, which only reads live Secrets.
+#
+# Usage:
+#   task              - list available tasks (same as `task --list`)
+#   task help         - list available tasks
+#   task preflight    - check required CLIs + context
+#   task deploy       - one-command deploy (connected mode, default)
+#   task deploy MODE=airgap           - air-gap-ready mode
+#   task creds        - print demo logins, read live from the cluster
+#   task creds KEYCLOAK_NS=<ns>        - override the Keycloak namespace
+#   task reset        - return to a clean demo state
+#   task status       - show Argo apps + key workloads
+#   task mirror       - populate the internal registry for air-gap
+#   task destroy      - tear down the cluster + infra
+# =============================================================================
+
+version: '3'
+
+vars:
+  MODE: '{{.MODE | default "connected"}}'            # connected | airgap
+  KEYCLOAK_NS: '{{.KEYCLOAK_NS | default "keycloak"}}'
+
+tasks:
+
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list
+    silent: true
+
+  help:
+    desc: List available tasks
+    cmds:
+      - task --list
+    silent: true
+
+  preflight:
+    desc: Check required CLIs + context (oc, aws, terraform, kubeseal-free)
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+        echo "[preflight] checking tooling + cluster/AWS access..."
+        command -v oc  >/dev/null || { echo "  MISSING: oc"; exit 1; }
+        command -v aws >/dev/null || { echo "  MISSING: aws"; exit 1; }
+        echo "  TODO(P1): assert KUBECONFIG reachable, AWS account == 342934376218, base_domain set"
+
+  deploy:
+    desc: One-command deploy (MODE=connected|airgap)
+    silent: true
+    cmds:
+      - task: preflight
+      - |
+        echo "[deploy MODE={{.MODE}}] TODO(P1-P7): operators -> identity+SCM -> Coder -> RHOAI -> templates -> ({{.MODE}}=airgap: egress-deny + internal-registry-only)"
+
+  reset:
+    desc: Return to a clean demo state (workspaces/chats/projects), keep infra
+    silent: true
+    cmds:
+      - |
+        echo "[reset] TODO(P7): delete demo workspaces/chats + seed projects; re-seed identity"
+
+  mirror:
+    desc: Populate the internal registry for air-gap (oc-mirror)
+    silent: true
+    cmds:
+      - |
+        echo "[mirror] TODO(P6): oc-mirror operator + workload images into the internal registry"
+
+  status:
+    desc: Show Argo apps + key workloads
+    silent: true
+    cmds:
+      - |
+        echo "[status] TODO(P1): oc get applications -n openshift-gitops; oc get inferenceservice -A"
+
+  creds:
+    desc: Print demo login credentials (personas + Keycloak admin), read live from the cluster
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+        command -v oc >/dev/null || { echo "MISSING: oc"; exit 1; }
+        oc get secret keycloak-realm-secrets -n {{.KEYCLOAK_NS}} >/dev/null 2>&1 || { \
+          echo "keycloak-realm-secrets not found in ns '{{.KEYCLOAK_NS}}' — is identity deployed?"; exit 1; }
+        get() { oc get secret "$1" -n {{.KEYCLOAK_NS}} -o jsonpath="{.data.$2}" | base64 -d; }
+        echo "=== Demo personas (realm: demo) ==="
+        printf '  %-9s %-10s %s\n' USER ROLE PASSWORD
+        printf '  %-9s %-10s %s\n' alice   developer "$(get keycloak-realm-secrets alice_password)"
+        printf '  %-9s %-10s %s\n' bob     auditor   "$(get keycloak-realm-secrets bob_password)"
+        printf '  %-9s %-10s %s\n' demoadm admin     "$(get keycloak-realm-secrets demoadm_password)"
+        echo
+        echo "=== Keycloak admin console ==="
+        kc_host=$(oc get route keycloak -n {{.KEYCLOAK_NS}} -o jsonpath='{.spec.host}' 2>/dev/null || true)
+        [ -n "$kc_host" ] && echo "  URL:      https://$kc_host/admin" || echo "  URL:      (keycloak Route not found yet)"
+        if oc get secret keycloak-initial-admin -n {{.KEYCLOAK_NS}} >/dev/null 2>&1; then
+          printf '  %-9s %s\n' user     "$(get keycloak-initial-admin username)"
+          printf '  %-9s %s\n' password "$(get keycloak-initial-admin password)"
+        else echo "  (keycloak-initial-admin not created yet)"; fi
+
+  destroy:
+    desc: Tear down the cluster + infra
+    silent: true
+    cmds:
+      - |
+        echo "[destroy] TODO(P1): terraform destroy (+ openshift-install destroy)"

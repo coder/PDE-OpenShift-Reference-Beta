@@ -5,17 +5,17 @@
 
 ## Prerequisites (provided at deploy time — never committed, per D5)
 - AWS creds for sandbox **342934376218** (`AWS_PROFILE` / SSO), region `us-east-1`.
-- `oc`, `aws`, `terraform` on PATH (`make preflight` checks).
+- `oc`, `aws`, `terraform` on PATH (`task preflight` checks).
 - A **Red Hat pull secret** (for RHOAI/RHBK operator images).
 - A **Coder license** key (needed at the air‑gap/Agents phase).
 - `base_domain` for the new DNS (default `rh-pde.coderdemo.io`; see `terraform/terraform.tfvars.example`).
 
 ## Deploy
 ```bash
-make preflight                 # tooling + access checks
-make deploy                    # connected mode (default)
-make deploy MODE=airgap        # air-gap-ready mode
-make status                    # Argo apps + InferenceService health
+task preflight                 # tooling + access checks
+task deploy                    # connected mode (default)
+task deploy MODE=airgap        # air-gap-ready mode
+task status                    # Argo apps + InferenceService health
 ```
 What `deploy` will do (phased):
 1. **P1** cluster prereqs (terraform) + operator subscriptions (GitOps, cert‑manager, RHOAI, ESO, CNPG).
@@ -31,26 +31,26 @@ generated **in‑cluster** at deploy time (ESO `Password` generators) and live
 only in `Secret/keycloak-realm-secrets` (ns `keycloak`); Keycloak itself stores
 only hashes. Retrieve the human logins — the demo team needs these — with:
 ```bash
-make creds     # personas (alice/bob/demoadm) + Keycloak admin console, read live
+task creds     # personas (alice/bob/demoadm) + Keycloak admin console, read live
 ```
-`make creds` reads straight from the cluster and prints nothing to disk/git.
+`task creds` reads straight from the cluster and prints nothing to disk/git.
 It requires **cluster‑admin** (`kube:admin` at install; `demoadm` works once the
 realm is up). The machine OIDC client secrets (`*_client_secret`) are wired
 automatically and are intentionally **not** printed. Override the namespace with
-`make creds KEYCLOAK_NS=<ns>` if needed.
+`task creds KEYCLOAK_NS=<ns>` if needed.
 
 ## Reset (between demos)
 ```bash
-make reset     # delete demo workspaces/chats + re-seed Git projects + re-seed identity; infra untouched
+task reset     # delete demo workspaces/chats + re-seed Git projects + re-seed identity; infra untouched
 ```
 
 ## Teardown
 ```bash
-make destroy   # terraform destroy (+ openshift-install destroy)
+task destroy   # terraform destroy (+ openshift-install destroy)
 ```
 
 ## Acceptance (definition of done — P7)
-Fresh account → `make deploy` → SSO‑gated Coder, a workspace from an internal‑registry
-image, a Coder Agents chat driving the in‑cluster RHOAI model; `make deploy MODE=airgap`
-denies workspace egress yet the agent still answers from in‑cluster; `make reset`
+Fresh account → `task deploy` → SSO‑gated Coder, a workspace from an internal‑registry
+image, a Coder Agents chat driving the in‑cluster RHOAI model; `task deploy MODE=airgap`
+denies workspace egress yet the agent still answers from in‑cluster; `task reset`
 returns to clean. No hand‑run scripts; no code↔live drift.

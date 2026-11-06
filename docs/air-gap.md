@@ -22,7 +22,7 @@ Everything the demo touches is **in‑cluster**; workspace egress is **default�
 
 ## Fully disconnected (documented path)
 1. **Mirror** images with `oc-mirror` (operators + workload + workspace images) into a
-   registry reachable by the cluster. (`make mirror` / `images/` helper.)
+   registry reachable by the cluster. (`task mirror` / `images/` helper.)
 2. **ImageDigestMirrorSet / ImageContentSourcePolicy** so pulls resolve to the mirror.
 3. **Disconnected OpenShift install** (imageContentSources in `install-config`).
 4. **RHOAI** model artifacts mirrored to internal object storage / OCI; `InferenceService`
@@ -32,4 +32,4 @@ Everything the demo touches is **in‑cluster**; workspace egress is **default�
 
 ## Carry‑over
 `images/` includes the internal‑registry **mirror helper** ported from the prior build
-(`mirror-to-internal-registry.sh`) — the seed of the `make mirror` flow.
+(`mirror-to-internal-registry.sh`) — the seed of the `task mirror` flow.
