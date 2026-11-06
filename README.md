@@ -36,15 +36,16 @@ on OpenShift + OpenShift AI (RHOAI)**. The same manifests run in two modes:
   minimal observability. (D6–D8)
 
 ## Quickstart (once built)
+This repo uses [go-task](https://taskfile.dev) (`task`) as its task runner — install it via https://taskfile.dev/installation/.
 ```bash
-make help          # list targets
-make deploy        # one-command deploy (connected mode)  [Phase 7]
-make deploy MODE=airgap
-make creds         # print demo logins (personas + Keycloak admin), read live from the cluster
-make reset         # return to a clean demo state
-make destroy
+task help          # list targets
+task deploy        # one-command deploy (connected mode)  [Phase 7]
+task deploy MODE=airgap
+task creds         # print demo logins (personas + Keycloak admin), read live from the cluster
+task reset         # return to a clean demo state
+task destroy
 ```
-`make creds` works as soon as the identity layer is deployed; see
+`task creds` works as soon as the identity layer is deployed; see
 [`docs/deploy.md`](docs/deploy.md#credentials-retrieving-the-generated-demo-logins).
 
 ## Repository layout
