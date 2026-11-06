@@ -1,0 +1,59 @@
+# OpenShift Routes for Coder (edge TLS).
+#
+# 1. `coder` — the access URL (coder.apps.cluster.rh-pde.coderdemo.io).
+# 2. `coder-wildcard` — workspace apps at *.coder.apps.cluster.rh-pde.coderdemo.io
+#    (CODER_DISABLE_PATH_APPS=true routes apps to subdomains). wildcardPolicy
+#    Subdomain serves every *.coder.apps.cluster.rh-pde.coderdemo.io host; the
+#    first host label is a placeholder. Requires the IngressController to allow
+#    wildcard routes — see ingresscontroller-wildcard.yaml.
+#
+# Both target the chart's `coder` Service (port name `http`, 80). cert-manager
+# annotations populate the cert once the ClusterIssuer exists (later phase); the
+# workspace-apps host is two labels deep, so the cluster's default *.apps cert
+# does not cover it (expect a cert warning until a *.coder.apps cert is issued).
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: coder
+  namespace: coder
+  labels:
+    app.kubernetes.io/name: coder
+    app.kubernetes.io/part-of: pde-openshift-reference
+  annotations:
+    cert-manager.io/issuer-kind: ClusterIssuer
+    cert-manager.io/issuer-name: letsencrypt-prod
+spec:
+  host: coder.apps.cluster.rh-pde.coderdemo.io
+  to:
+    kind: Service
+    name: coder
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: coder-wildcard
+  namespace: coder
+  labels:
+    app.kubernetes.io/name: coder
+    app.kubernetes.io/part-of: pde-openshift-reference
+spec:
+  # First label is a placeholder; Subdomain policy serves *.coder.apps.cluster...
+  host: apps.coder.apps.cluster.rh-pde.coderdemo.io
+  to:
+    kind: Service
+    name: coder
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: Subdomain

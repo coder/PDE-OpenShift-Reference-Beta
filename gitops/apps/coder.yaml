@@ -1,17 +1,182 @@
-# Coder (Helm via GitOps): OIDC->Keycloak, AI Gateway, routes/TLS.
+# Coder — installed via the upstream Helm chart (ADR D6/D7).
+#
+# Chart source (coder 2.39.0; chart == appVersion == image tag). Supporting
+# resources (CNPG DB, OIDC client Secret, Routes, wildcard ingress enablement)
+# are the separate `coder-config` app (gitops/apps/coder-config.yaml) at an
+# earlier sync-wave so the DB + secrets exist before Coder schedules.
+#
+# Identity (D1): single IdP = Keycloak `demo` realm. Password auth disabled;
+# no GitHub OAuth (dropped vs. the prior demo). Group->role sync (admins=owner,
+# auditors=auditor) is Premium-gated and applies once a Coder license is added
+# at deploy time (CODER_LICENSE / `coder licenses add`); login works without it.
+#
+# External Git auth (D2): slot 0 = in-cluster Gitea, using the OAuth2 app the
+# SCM phase registered (Secret coder/coder-gitea-oauth). Workspaces obtain Gitea
+# tokens for clone/push.
+#
+# AI Gateway / Bedrock wiring (CODER_AI_GATEWAY_*) is Phase 4 (model serving).
+#
+# Required Secrets in `coder` (must exist before pods schedule, else
+# CrashLoopBackOff on env lookup): coder-db-app (CNPG), coder-oidc-client-secret
+# (ESO), coder-gitea-oauth (SCM registration Job). All generated/shared
+# in-cluster — never in git (D5).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: coder
   namespace: openshift-gitops
   annotations:
-    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-wave: "3"
 spec:
   project: default
   source:
-    repoURL: https://github.com/coder/PDE-OpenShift-Reference-Beta.git
-    targetRevision: main
-    path: manifests/coder
+    repoURL: https://helm.coder.com/v2
+    chart: coder
+    targetRevision: 2.39.0
+    helm:
+      releaseName: coder
+      values: |
+        coder:
+          image:
+            repo: ghcr.io/coder/coder
+            tag: v2.39.0
+            pullPolicy: IfNotPresent
+          replicaCount: 1
+          podAnnotations:
+            prometheus.io/scrape: "true"
+            prometheus.io/port: "2112"
+          env:
+            # ── Core URLs ──────────────────────────────────────────────
+            - name: CODER_ACCESS_URL
+              value: "https://coder.apps.cluster.rh-pde.coderdemo.io"
+            - name: CODER_WILDCARD_ACCESS_URL
+              value: "*.coder.apps.cluster.rh-pde.coderdemo.io"
+            # Build cache on an emptyDir /tmp (restricted-v2 readOnlyRootFilesystem).
+            - name: CODER_CACHE_DIRECTORY
+              value: /tmp/coder
+            # ── Postgres (CNPG-generated coder-db-app Secret) ──────────
+            - name: CODER_PG_CONNECTION_URL
+              valueFrom:
+                secretKeyRef:
+                  name: coder-db-app
+                  key: uri
+            # ── Security headers + cookie hardening ────────────────────
+            - name: CODER_DISABLE_PATH_APPS
+              value: "true"
+            - name: CODER_SECURE_AUTH_COOKIE
+              value: "true"
+            - name: CODER_STRICT_TRANSPORT_SECURITY
+              value: "31536000"
+            # ── Auth: single IdP — Keycloak OIDC (D1) ──────────────────
+            - name: CODER_DISABLE_PASSWORD_AUTH
+              value: "true"
+            - name: CODER_OIDC_ISSUER_URL
+              value: "https://keycloak.apps.cluster.rh-pde.coderdemo.io/realms/demo"
+            - name: CODER_OIDC_CLIENT_ID
+              value: "coder"
+            - name: CODER_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: coder-oidc-client-secret
+                  key: oidc-client-secret
+            - name: CODER_OIDC_SIGN_IN_TEXT
+              value: "Keycloak"
+            - name: CODER_OIDC_ICON_URL
+              value: "https://cdn.simpleicons.org/keycloak/26ABE8"
+            - name: CODER_OIDC_ALLOW_SIGNUPS
+              value: "true"
+            - name: CODER_OIDC_EMAIL_FIELD
+              value: "email"
+            - name: CODER_OIDC_IGNORE_EMAIL_VERIFIED
+              value: "false"
+            - name: CODER_OIDC_GROUP_FIELD
+              value: "groups"
+            - name: CODER_OIDC_GROUP_AUTO_CREATE
+              value: "true"
+            # `groups` is a client protocol mapper, not a registered realm
+            # scope — do NOT request it as a scope ("Invalid scopes").
+            - name: CODER_OIDC_SCOPES
+              value: "openid,profile,email"
+            # Group->site-role sync (Premium): admins=owner, auditors=auditor.
+            # developers intentionally unmapped (site Member only).
+            - name: CODER_OIDC_USER_ROLE_FIELD
+              value: "groups"
+            - name: CODER_OIDC_USER_ROLE_MAPPING
+              value: '{"admins":["owner"],"auditors":["auditor"]}'
+            # ── External Git auth: in-cluster Gitea (D2) ───────────────
+            - name: CODER_EXTERNAL_AUTH_0_TYPE
+              value: "gitea"
+            - name: CODER_EXTERNAL_AUTH_0_ID
+              value: "gitea"
+            - name: CODER_EXTERNAL_AUTH_0_DISPLAY_NAME
+              value: "Gitea"
+            - name: CODER_EXTERNAL_AUTH_0_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: coder-gitea-oauth
+                  key: client-id
+            - name: CODER_EXTERNAL_AUTH_0_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: coder-gitea-oauth
+                  key: client-secret
+            # Self-hosted Gitea endpoint overrides (Coder's gitea defaults
+            # point at gitea.com).
+            - name: CODER_EXTERNAL_AUTH_0_AUTH_URL
+              value: "https://gitea.apps.cluster.rh-pde.coderdemo.io/login/oauth/authorize"
+            - name: CODER_EXTERNAL_AUTH_0_TOKEN_URL
+              value: "https://gitea.apps.cluster.rh-pde.coderdemo.io/login/oauth/access_token"
+            - name: CODER_EXTERNAL_AUTH_0_VALIDATE_URL
+              value: "https://gitea.apps.cluster.rh-pde.coderdemo.io/api/v1/user"
+            - name: CODER_EXTERNAL_AUTH_0_REGEX
+              value: "gitea\\.apps\\.cluster\\.rh-pde\\.coderdemo\\.io"
+            # ── Provisioners (in-process; no separate provisioner app) ──
+            - name: CODER_PROVISIONER_DAEMONS
+              value: "3"
+            # ── Telemetry / direct-connect off for the demo network ────
+            - name: CODER_BLOCK_DIRECT
+              value: "true"
+            - name: CODER_TELEMETRY_ENABLE
+              value: "false"
+            # ── Prometheus ─────────────────────────────────────────────
+            - name: CODER_PROMETHEUS_ENABLE
+              value: "true"
+            - name: CODER_PROMETHEUS_ADDRESS
+              value: "0.0.0.0:2112"
+            - name: CODER_PROMETHEUS_COLLECT_AGENT_STATS
+              value: "true"
+          # We manage OpenShift Routes ourselves (manifests/coder/routes.yaml).
+          ingress:
+            enable: false
+          serviceAccount:
+            name: coder
+            workspacePerms: true
+            enableDeployments: true
+          # OpenShift restricted-v2 SCC compliance (docs.coder.com/install/openshift).
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: null
+            runAsGroup: null
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+            - name: cache
+              emptyDir:
+                sizeLimit: 1Gi
+          volumeMounts:
+            - name: cache
+              mountPath: /tmp
+              readOnly: false
+          service:
+            type: ClusterIP
+          resources:
+            requests:
+              cpu: "1"
+              memory: "2Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
   destination:
     server: https://kubernetes.default.svc
     namespace: coder

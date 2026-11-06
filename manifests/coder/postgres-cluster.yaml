@@ -1,0 +1,28 @@
+# CNPG Postgres backing Coder (ADR D5: operator-managed creds).
+#
+# CNPG auto-generates the `coder-db-app` Secret (keys incl. `uri`); Coder reads
+# CODER_PG_CONNECTION_URL from it. Demo-grade single instance.
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: coder-db
+  namespace: coder
+  labels:
+    app.kubernetes.io/name: coder-db
+    app.kubernetes.io/part-of: pde-openshift-reference
+spec:
+  instances: 1
+  storage:
+    size: 10Gi
+  bootstrap:
+    initdb:
+      database: coder
+      owner: coder
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "1Gi"

@@ -12,7 +12,7 @@
 | Operators | cert‑manager, **OpenShift AI (RHOAI)**, External Secrets, CNPG | installed at bootstrap (`gitops/operators/`) |
 | Identity | Keycloak (RHBK) — realm `demo` | single IdP (D1) |
 | SCM | in‑cluster Git — **Gitea** (Helm) | (D2) SSO login via Keycloak; also Coder's external Git‑auth provider |
-| Coder | Helm via GitOps | OIDC → Keycloak; AI Gateway (`CODER_AI_GATEWAY_*`) |
+| Coder | Helm via GitOps (chart 2.39.0) | Keycloak‑only OIDC login (D1); CNPG Postgres; Gitea external Git auth; AI Gateway in P4 |
 | Model serving | RHOAI KServe + vLLM `ServingRuntime` | Qwen2.5‑7B on A10G (D3/D4) |
 | Agents | Coder Agents (chatd) in‑product | sovereign (RHOAI) + optional Bedrock |
 | Workspaces | `workspace-basic`, `workspace-agent` | offline AI CLIs; internal‑registry images |
