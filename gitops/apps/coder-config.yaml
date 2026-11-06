@@ -1,0 +1,33 @@
+# Coder supporting config — CNPG DB, OIDC client Secret, Routes, and wildcard
+# ingress enablement (ADR D1/D5). Separate from the Coder Helm app (`coder`,
+# gitops/apps/coder.yaml) at an earlier sync-wave so the database + secrets
+# exist before Coder schedules.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: coder-config
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/coder/PDE-OpenShift-Reference-Beta.git
+    targetRevision: main
+    path: manifests/coder
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: coder
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 8
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m
