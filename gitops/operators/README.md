@@ -1,5 +1,5 @@
 # gitops/operators/
-OLM Subscriptions applied by the bootstrap step of `make deploy` **before** the Argo
+OLM Subscriptions applied by the bootstrap step of `task deploy` **before** the Argo
 root app, because their CRDs must exist before `gitops/apps/` can sync. Order-prefixed.
 No secret values here (D5). Channels pinned to the live catalog (verified 2026-11-02).
 

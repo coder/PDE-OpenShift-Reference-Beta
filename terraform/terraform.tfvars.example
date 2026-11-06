@@ -3,7 +3,7 @@
 
 # --- Cloud / account ---
 aws_region  = "us-east-1"
-aws_profile = "342934376218_AWSAdministratorAccess"   # AWS sandbox 342934376218
+aws_profile = "<AWS_ACCOUNT_ID>_AWSAdministratorAccess"   # AWS sandbox <AWS_ACCOUNT_ID>
 
 # --- DNS / naming (new names, no longer referencing rhsummit) ---
 # Parent public zone is coderdemo.io (delegated). The cluster installs under
@@ -12,8 +12,8 @@ base_domain  = "rh-pde.coderdemo.io"    # CONFIRM before provisioning
 cluster_name = "cluster"             # -> apps.cluster.rh-pde.coderdemo.io
 
 # --- Run mode ---
-# deploy_mode = "connected"   # connected | airgap  (also settable via `make deploy MODE=...`)
+# deploy_mode = "connected"   # connected | airgap  (also settable via `task deploy MODE=...`)
 
 # --- Secrets are NOT set here (D5) ---
-# Red Hat pull secret + Coder license are provided at deploy time via env/make,
+# Red Hat pull secret + Coder license are provided at deploy time via env/task,
 # not through tfvars. Demo/OIDC secrets are generated in-cluster (ESO generators).

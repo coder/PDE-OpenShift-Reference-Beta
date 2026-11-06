@@ -40,7 +40,7 @@ tasks:
     silent: true
 
   preflight:
-    desc: Check required CLIs + context (oc, aws, terraform, kubeseal-free)
+    desc: Check required CLIs + context (oc, aws, terraform)
     silent: true
     cmds:
       - |
@@ -48,7 +48,7 @@ tasks:
         echo "[preflight] checking tooling + cluster/AWS access..."
         command -v oc  >/dev/null || { echo "  MISSING: oc"; exit 1; }
         command -v aws >/dev/null || { echo "  MISSING: aws"; exit 1; }
-        echo "  TODO(P1): assert KUBECONFIG reachable, AWS account == 342934376218, base_domain set"
+        echo "  TODO(P1): assert KUBECONFIG reachable, AWS account == <AWS_ACCOUNT_ID>, base_domain set"
 
   deploy:
     desc: One-command deploy (MODE=connected|airgap)

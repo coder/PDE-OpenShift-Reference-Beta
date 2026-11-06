@@ -1,6 +1,6 @@
 # Argo CD root "app-of-apps".
 #
-# Bootstraps every Application under gitops/apps/. Applied once (by `make deploy`
+# Bootstraps every Application under gitops/apps/. Applied once (by `task deploy`
 # / the bootstrap step) after the OpenShift GitOps operator is installed.
 #
 # NOTE: repoURL points at the PUBLIC repo over HTTPS (no credential needed for a
