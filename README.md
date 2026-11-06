@@ -15,10 +15,11 @@ on OpenShift + OpenShift AI (RHOAI)**. The same manifests run in two modes:
 | Workspace egress | allowed | **default‑deny** (NetworkPolicy / Agent Firewall) |
 | Secrets | generated in‑cluster / provided at deploy — **never in git** | same |
 
-> **Status: identity layer landed (Phases 0–2a).** GitOps bootstrap + operator
-> subscriptions (Phase 1) and the Keycloak/RHBK identity stack — `demo` realm,
-> OIDC SSO (OpenShift + Argo CD), in‑cluster secret generation (ESO) — are in
-> `main`. Upcoming: Gitea SCM (2b), Coder (P3), RHOAI model serving (P4),
+> **Status: identity + SCM landed (Phases 0–2b).** GitOps bootstrap + operator
+> subscriptions (Phase 1), the Keycloak/RHBK identity stack — `demo` realm,
+> OIDC SSO (OpenShift + Argo CD), in‑cluster secret generation (ESO) — and
+> **Gitea in‑cluster SCM** (Keycloak SSO login + Coder external‑Git‑auth
+> provider) are in `main`. Upcoming: Coder (P3), RHOAI model serving (P4),
 > workspace templates (P5), air‑gap mode (P6). Locked decisions:
 > [`docs/decisions.md`](docs/decisions.md).
 

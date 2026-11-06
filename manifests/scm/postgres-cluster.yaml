@@ -1,0 +1,30 @@
+# CNPG Postgres backing Gitea (ADR D2/D5: operator-managed creds).
+#
+# Single instance, demo-grade. CNPG auto-generates the `gitea-db-app` Secret
+# (keys: username, password, ...). Gitea reads the non-secret DB config from the
+# Helm values (manifests via gitops/apps/scm.yaml) and the username/password from
+# this Secret via env (gitea.additionalConfigFromEnvs). No credential in git.
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: gitea-db
+  namespace: scm
+  labels:
+    app.kubernetes.io/name: gitea-db
+    app.kubernetes.io/part-of: pde-openshift-reference
+spec:
+  instances: 1
+  storage:
+    size: 5Gi
+  bootstrap:
+    initdb:
+      database: gitea
+      owner: gitea
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
