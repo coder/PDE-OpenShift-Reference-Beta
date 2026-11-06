@@ -4,7 +4,7 @@
 > Phases 1–7. Goal: **one‑command, idempotent, no hand‑run scripts, no code↔live drift.**
 
 ## Prerequisites (provided at deploy time — never committed, per D5)
-- AWS creds for sandbox **342934376218** (`AWS_PROFILE` / SSO), region `us-east-1`.
+- AWS creds for the target account **`<AWS_ACCOUNT_ID>`** (`AWS_PROFILE` / SSO), region `us-east-1` — the account is supplied at deploy time, never committed.
 - `oc`, `aws`, `terraform` on PATH (`task preflight` checks).
 - A **Red Hat pull secret** (for RHOAI/RHBK operator images).
 - A **Coder license** key (needed at the air‑gap/Agents phase).

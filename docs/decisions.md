@@ -37,7 +37,7 @@ from three places, none of them git:
    `Password` generators** — persona passwords + OIDC client secrets. The Keycloak
    realm **render Job** injects them into the realm; each consumer reads the *same*
    generated Secret. (OIDC client‑secret coordination with zero values in git.)
-3. **Deploy‑time‑provided** — Red Hat pull secret, Coder license — via `make`/env,
+3. **Deploy‑time‑provided** — Red Hat pull secret, Coder license — via `task`/env,
    never committed. Bedrock (connected mode) uses **IRSA**, no static key.
 
 **Why:** a public reference repo must contain *zero* secret material — not even
@@ -70,8 +70,10 @@ else gets folded in or dropped. **Why:** the prior repo drifted to 33 markdown f
 ---
 
 ### Logistics (locked 2026‑11‑02)
-- Repo: `greg-the-coder/PDE-OpenShift-Reference-Beta` (public fork).
-- AWS sandbox **342934376218**, us‑east‑1. New DNS drops `rhsummit`:
+- Repo: canonical **`coder/PDE-OpenShift-Reference-Beta`** (public); work on fork
+  `greg-the-coder/…`, PR into upstream. Argo `repoURL` = upstream.
+- AWS account **`<AWS_ACCOUNT_ID>`** (target deployment account, supplied at
+  deploy time), us‑east‑1. New DNS drops `rhsummit`:
   `base_domain = rh-pde.coderdemo.io` → apps at `*.apps.cluster.rh-pde.coderdemo.io`
   (confirm exact base domain before cluster provisioning).
 - Air‑gap: **simulated‑on‑connected first**; fully‑disconnected path documented.

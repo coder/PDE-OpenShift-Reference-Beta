@@ -5,7 +5,7 @@
 # applies the resulting KeycloakRealmImport. The RHBK operator imports the realm.
 #
 # Runs as an Argo CD Sync hook every sync (hook-delete-policy BeforeHookCreation
-# recreates it), so a fresh deploy / `make reset` always re-seeds the realm from
+# recreates it), so a fresh deploy / `task reset` always re-seeds the realm from
 # the freshly generated passwords. The rendered manifest with real secrets lives
 # only in the pod's /tmp (ephemeral); nothing beyond keycloak-realm-secrets is
 # ever persisted, and nothing secret is written to git.

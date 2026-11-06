@@ -1,6 +1,6 @@
 # OpenShift GitOps (Argo CD). Bootstrap: installs the operator that then runs Argo in
 # namespace openshift-gitops. Argo cannot install the operator that provides Argo, so
-# this Subscription is applied directly by `make deploy`, not by Argo.
+# this Subscription is applied directly by `task deploy`, not by Argo.
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:

@@ -8,7 +8,7 @@
 # replaced in-cluster; the rendered KeycloakRealmImport never touches git.
 #
 # To change identities/clients, edit this template. To rotate credentials, run
-# `make reset` (regenerates the ESO Passwords) — this file does not change.
+# `task reset` (regenerates the ESO Passwords) — this file does not change.
 apiVersion: v1
 kind: ConfigMap
 metadata:
