@@ -16,8 +16,9 @@ create_route53_zone = true
 
 # --- IRSA (fill in AFTER openshift-install, then re-apply) ---
 # oc get authentication cluster -o jsonpath='{.spec.serviceAccountIssuer}'
-# oidc_provider_arn = "arn:aws:iam::<AWS_ACCOUNT_ID>:oidc-provider/<bucket>.s3.<region>.amazonaws.com/<infra-id>"
-# oidc_issuer_host  = "<bucket>.s3.<region>.amazonaws.com/<infra-id>"
+#   -> e.g. https://rh-pde-cluster-oidc.s3.us-east-1.amazonaws.com   (NO path suffix)
+# oidc_provider_arn = "arn:aws:iam::<AWS_ACCOUNT_ID>:oidc-provider/<infra-id>-oidc.s3.<region>.amazonaws.com"
+# oidc_issuer_host  = "<infra-id>-oidc.s3.<region>.amazonaws.com"
 # enable_bedrock    = false            # true only for connected-mode Bedrock AI
 
 # --- Secrets are NOT set here (D5) ---

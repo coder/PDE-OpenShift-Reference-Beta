@@ -35,8 +35,9 @@ variable "create_route53_zone" {
 # From the INSTALLED cluster (STS/OIDC): the IAM OIDC provider ARN and issuer
 # host. Get after `openshift-install`:
 #   oc get authentication cluster -o jsonpath='{.spec.serviceAccountIssuer}'
-# -> e.g. https://<bucket>.s3.<region>.amazonaws.com/<infra-id>  (issuer host)
-# and the matching IAM OIDC provider ARN in the account.
+# -> e.g. https://<infra-id>-oidc.s3.<region>.amazonaws.com  (the S3 bucket host;
+#    NO /<infra-id> path suffix). The matching IAM OIDC provider ARN is
+#    arn:aws:iam::<account>:oidc-provider/<infra-id>-oidc.s3.<region>.amazonaws.com
 variable "oidc_provider_arn" {
   type        = string
   description = "IAM OIDC provider ARN of the installed cluster (for IRSA trust). Empty disables IRSA role creation."
@@ -45,7 +46,7 @@ variable "oidc_provider_arn" {
 
 variable "oidc_issuer_host" {
   type        = string
-  description = "OIDC issuer host (no scheme) used in the IRSA trust 'sub' condition, e.g. <bucket>.s3.<region>.amazonaws.com/<infra-id>."
+  description = "OIDC issuer host (no scheme, no path) used in the IRSA trust 'sub' condition, e.g. <infra-id>-oidc.s3.<region>.amazonaws.com."
   default     = ""
 }
 
