@@ -1,0 +1,40 @@
+# OpenShift IPI install-config for AWS — EXAMPLE (P7).
+#
+# Copy to install-config.yaml (gitignored) next to where you run
+# `openshift-install`, fill the <PLACEHOLDERS>, then:
+#   openshift-install create cluster --dir <dir>
+#
+# IRSA REQUIREMENT: this demo's cert-manager (Route53) and optional Coder
+# (Bedrock) use IRSA, which needs the cluster in STS/OIDC mode. Hence
+# `credentialsMode: Manual` + the Cloud Credential Operator utility (ccoctl):
+#   openshift-install create manifests --dir <dir>
+#   ccoctl aws create-all --name <cluster> --region <region> \
+#     --credentials-requests-dir <cr-dir> --output-dir <out>
+#   # copy ccoctl's generated manifests/tls into <dir> before create cluster
+# ccoctl creates the IAM OIDC provider whose ARN/issuer feed terraform (IRSA).
+#
+# NOTE: pullSecret + sshKey are deploy-time inputs — NEVER commit the filled file (D5).
+apiVersion: v1
+baseDomain: rh-pde.coderdemo.io
+metadata:
+  name: cluster              # -> api.cluster.rh-pde.coderdemo.io, *.apps.cluster...
+credentialsMode: Manual       # STS/OIDC (required for IRSA)
+controlPlane:
+  name: master
+  replicas: 3
+  platform:
+    aws:
+      type: m6i.xlarge
+compute:
+  - name: worker
+    replicas: 3
+    platform:
+      aws:
+        type: m6i.2xlarge
+    # GPU workers are added POST-install via install/gpu-machineset.yaml.example
+    # (or `task gpu-node`) so the base install stays standard.
+platform:
+  aws:
+    region: us-east-1
+pullSecret: '<RED_HAT_PULL_SECRET_JSON>'   # from console.redhat.com; deploy-time
+sshKey: '<SSH_PUBLIC_KEY>'                  # for node debugging; deploy-time
