@@ -1,0 +1,31 @@
+# RHOAI platform enablement (ADR D3).
+#
+# DSCInitialization controls the RHOAI platform-level services. For KServe in
+# RawDeployment mode we DISABLE ServiceMesh (no Istio) and Serverless (no
+# Knative) — see the DataScienceCluster in datasciencecluster.yaml. This is the
+# key D3 decision: standard Kubernetes Deployments/Services/Routes, no mesh.
+#
+# NOTE (version): CRD groups are opendatahub.io (RHOAI uses the ODH API group).
+# Field names below match RHOAI 2.x; confirm against the installed rhods-operator
+# version at the P7 fresh-cluster acceptance run.
+#
+# Applied via server-side apply with Force (scoped) so Argo can own the spec of
+# this operator-reconciled singleton without field-manager conflicts.
+apiVersion: dscinitialization.opendatahub.io/v1
+kind: DSCInitialization
+metadata:
+  name: default-dsci
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/sync-options: ServerSideApply=true,Force=true
+spec:
+  applicationsNamespace: redhat-ods-applications
+  monitoring:
+    managementState: Managed
+    namespace: redhat-ods-monitoring
+  # RawDeployment (D3): no Istio ServiceMesh.
+  serviceMesh:
+    managementState: Removed
+  trustedCABundle:
+    managementState: Managed
+    customCABundle: ""

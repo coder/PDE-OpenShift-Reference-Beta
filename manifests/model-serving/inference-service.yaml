@@ -1,0 +1,47 @@
+# InferenceService — Qwen2.5-7B-Instruct on 1× A10G, RawDeployment (ADR D3/D4).
+#
+# The serving.kserve.io/deploymentMode: RawDeployment annotation makes KServe
+# emit a plain Deployment + Service + (optional) Route instead of Knative. The
+# model is pulled at runtime from Hugging Face via the hf:// storageUri
+# (connected mode); air-gap pre-mirroring is handled in Phase 6.
+#
+# GPU: requests 1 nvidia.com/gpu, tolerates the GPU node taint and pins to a
+# GPU node (label set by the NVIDIA GPU operator). The g5.2xlarge (A10G) GPU
+# MachineSet is infrastructure (terraform), not GitOps — assumed present.
+#
+# Scale-up path (documented, not deployed): Llama-3.3-70B on L40S with TP, kept
+# scaled to 0 — swap the runtime image/args + storageUri and raise GPU count.
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: qwen25-7b
+  namespace: rhoai-serving
+  labels:
+    app.kubernetes.io/part-of: pde-openshift-reference
+  annotations:
+    serving.kserve.io/deploymentMode: RawDeployment
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  predictor:
+    minReplicas: 1
+    maxReplicas: 1
+    model:
+      modelFormat:
+        name: vLLM
+      runtime: vllm-qwen
+      storageUri: hf://Qwen/Qwen2.5-7B-Instruct
+      resources:
+        requests:
+          cpu: "4"
+          memory: 24Gi
+          nvidia.com/gpu: "1"
+        limits:
+          cpu: "8"
+          memory: 24Gi
+          nvidia.com/gpu: "1"
+    tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+    nodeSelector:
+      nvidia.com/gpu.present: "true"
