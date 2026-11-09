@@ -54,3 +54,4 @@ kubeconfig
 auth/
 # OpenShift installer scratch (never commit)
 terraform/.cluster/
+.terraform.lock.hcl

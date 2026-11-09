@@ -1,0 +1,52 @@
+name: build-images
+# Build + push the UBI9 workspace images to GHCR on changes under images/.
+# These are the source-of-truth images that mirror-to-internal-registry.sh
+# copies into the OpenShift internal registry for the templates to consume.
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "images/**"
+      - ".github/workflows/build-images.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  OWNER: coder/pde-openshift-reference
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Base first — ubi9-node-workspace FROMs it.
+      - name: Build + push ubi9-base-workspace
+        uses: docker/build-push-action@v6
+        with:
+          context: images/ubi9-base-workspace
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/ubi9-base-workspace:9.7
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/ubi9-base-workspace:latest
+
+      - name: Build + push ubi9-node-workspace
+        uses: docker/build-push-action@v6
+        with:
+          context: images/ubi9-node-workspace
+          push: true
+          build-args: |
+            WORKSPACE_BASE=${{ env.REGISTRY }}/${{ env.OWNER }}/ubi9-base-workspace:latest
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/ubi9-node-workspace:9.7
+            ${{ env.REGISTRY }}/${{ env.OWNER }}/ubi9-node-workspace:latest
