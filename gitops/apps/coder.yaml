@@ -138,10 +138,12 @@ spec:
             # Bedrock is intentionally NOT wired here (optional connected-mode
             # add-on + Coder SA IRSA annotation — a later connected toggle).
             #
-            # NOTE (P7): confirm the exact 2.39 env var names (esp.
-            # *_OPENAI_BASE_URL) and the predictor Service DNS
-            # (<isvc>-predictor.<ns>.svc) at the fresh-cluster run; providers
-            # can alternatively be managed via the Coder UI/API (seed-once).
+            # NOTE: env var names confirmed against live Coder 2.37.6
+            # (CODER_AI_GATEWAY_OPENAI_BASE_URL/_KEY/_ENABLED/_ALLOW_BYOK);
+            # re-verify on the 2.39 bump. These seed the provider once ('not
+            # used in service runtime') — on an existing DB manage it via the
+            # Coder UI/API. Confirm the predictor Service DNS
+            # (<isvc>-predictor.<ns>.svc) at P7.
             - name: CODER_AI_GATEWAY_ENABLED
               value: "true"
             - name: CODER_AI_GATEWAY_STRUCTURED_LOGGING

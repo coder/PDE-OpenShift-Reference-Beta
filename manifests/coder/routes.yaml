@@ -46,7 +46,7 @@ metadata:
     app.kubernetes.io/part-of: pde-openshift-reference
 spec:
   # First label is a placeholder; Subdomain policy serves *.coder.apps.cluster...
-  host: apps.coder.apps.cluster.rh-pde.coderdemo.io
+  host: x.coder.apps.cluster.rh-pde.coderdemo.io
   to:
     kind: Service
     name: coder
