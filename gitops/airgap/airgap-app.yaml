@@ -1,0 +1,34 @@
+# Air-gap Argo Application — deploys the air-gap overlay (NetworkPolicy +
+# ImageDigestMirrorSet) into the cluster. Kept OUTSIDE gitops/apps/ on purpose:
+# the root app-of-apps recurses gitops/apps/ only, so CONNECTED mode never
+# syncs this. `task deploy MODE=airgap` applies this Application; `task reset`/
+# connected deploys can delete it to drop back to connected posture.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: airgap
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/coder/PDE-OpenShift-Reference-Beta.git
+    targetRevision: main
+    path: manifests/airgap
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: coder-workspaces
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 8
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

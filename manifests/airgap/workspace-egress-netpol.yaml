@@ -1,0 +1,57 @@
+# Default-deny workspace egress — the air-gap sovereignty control (ADR, P6).
+#
+# Applied ONLY in air-gap mode (via `task deploy MODE=airgap`, which syncs the
+# gitops/airgap app). A single Egress policy with an allow-list = default-deny
+# for everything not listed. Workspaces can reach in-cluster services (incl.
+# the OpenShift router, so Coder's access_url / AI Gateway and Gitea routes
+# resolve to cluster IPs) and DNS — but NOT the public internet.
+#
+# This is the demo proof point: the AI agent still answers (traffic to the
+# in-cluster Coder AI Gateway -> RHOAI vLLM) while the workspace itself cannot
+# egress to the internet.
+#
+# NOTE (P7): tune the allow-list to the cluster. namespaceSelector matches the
+# default `kubernetes.io/metadata.name` label OpenShift sets on every namespace.
+# Image pulls are kubelet-level (not pod egress), so they are unaffected by this.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: workspace-default-deny-egress
+  namespace: coder-workspaces
+  labels:
+    app.kubernetes.io/part-of: pde-openshift-reference
+spec:
+  podSelector: {}          # every workspace pod
+  policyTypes:
+    - Egress
+  egress:
+    # DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # OpenShift router — lets access_url / *.apps routes (Coder, Gitea) resolve
+    # to in-cluster IPs without leaving the cluster.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-ingress
+    # In-cluster app services (direct ClusterIP paths)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: coder
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: rhoai-serving
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: scm
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: openshift-image-registry
