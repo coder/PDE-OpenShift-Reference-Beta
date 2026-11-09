@@ -15,12 +15,13 @@ on OpenShift + OpenShift AI (RHOAI)**. The same manifests run in two modes:
 | Workspace egress | allowed | **default‑deny** (NetworkPolicy / Agent Firewall) |
 | Secrets | generated in‑cluster / provided at deploy — **never in git** | same |
 
-> **Status: air‑gap mode landed (Phases 0–6).** Operators (P1), Keycloak (P2a),
-> Gitea SCM (P2b), Coder (P3), RHOAI model serving (P4), workspace templates
-> (P5), and **air‑gap mode** (P6) — default‑deny workspace egress, internal‑
-> registry redirect, OCI ModelCar offline weights, oc‑mirror config, `MODE=airgap`
-> toggle — are in `main`. Upcoming: fresh‑cluster acceptance (P7), docs/diagrams
-> (P8). Locked decisions: [`docs/decisions.md`](docs/decisions.md).
+> **Status: deploy automation complete (Phases 0–7).** The full connected +
+> air‑gap reference architecture (operators, Keycloak, Gitea, Coder, RHOAI model
+> serving, workspace templates) plus **P7 deploy automation** — Terraform
+> (Route53 + IRSA), `install/` (install‑config + GPU MachineSet), and a real
+> `task deploy` (bootstrap→apps→IRSA→GPU→templates→air‑gap) — are in `main`.
+> Remaining: fresh‑cluster acceptance run + docs/diagrams (P8). Locked
+> decisions: [`docs/decisions.md`](docs/decisions.md).
 
 ## Design in one screen
 - **Single IdP** — Keycloak/RHBK only. (D1)
@@ -38,7 +39,7 @@ on OpenShift + OpenShift AI (RHOAI)**. The same manifests run in two modes:
 This repo uses [go-task](https://taskfile.dev) (`task`) as its task runner — install it via https://taskfile.dev/installation/.
 ```bash
 task help          # list targets
-task deploy        # one-command deploy (connected mode)  [Phase 7]
+task deploy        # one-command in-cluster deploy (connected mode)
 task deploy MODE=airgap
 task creds         # print demo logins (personas + Keycloak admin), read live from the cluster
 task reset         # return to a clean demo state
@@ -50,9 +51,11 @@ task destroy
 ## Repository layout
 ```
 docs/        architecture.md · deploy.md · air-gap.md · decisions.md  (5 docs max)
-terraform/   cluster prereqs + (optional) connected-mode IRSA
+terraform/   Route53 zone + IRSA IAM roles (cert-manager, optional Bedrock)
+install/     openshift-install config + GPU MachineSet (examples)
 gitops/      bootstrap/root-app.yaml · operators/ · apps/   (Argo app-of-apps)
-manifests/   k8s resources per app (+ air-gap overlays)
+manifests/   k8s resources per app (+ airgap overlay)
+mirror/      oc-mirror ImageSetConfig + OCI ModelCar (air-gap)
 templates/   workspace-basic · workspace-agent  (offline AI CLIs)
 images/      workspace image builds + internal-registry mirror helper
 ```
