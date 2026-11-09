@@ -6,18 +6,27 @@
 #
 # Pushed to GHCR by .github/workflows/build-images.yml. Tag scheme:
 #   ghcr.io/coder/pde-openshift-reference/ubi9-node-workspace:{9.7,latest}
-ARG WORKSPACE_BASE=ghcr.io/coder/pde-openshift-reference/ubi9-base-workspace:latest
+# Base tag pinned (not :latest) for reproducibility; CI passes the same via
+# the WORKSPACE_BASE build-arg. hadolint can't resolve the ARG, so DL3006 is
+# a false positive here.
+ARG WORKSPACE_BASE=ghcr.io/coder/pde-openshift-reference/ubi9-base-workspace:9.7
+# hadolint ignore=DL3006
 FROM ${WORKSPACE_BASE}
 
 USER 0
 
+# bash + pipefail so piped RUNs fail on upstream errors (DL4006); SHELL resets
+# across FROM so it is re-declared here.
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 # Node.js 22 LTS via NodeSource (UBI9 default repos ship only Node 18);
 # yarn + pnpm via corepack. typescript as a common global.
+# hadolint ignore=DL3041
 RUN curl -fsSL https://rpm.nodesource.com/setup_22.x | bash - \
     && dnf install -y --nodocs --setopt=install_weak_deps=False nodejs \
     && dnf clean all && rm -rf /var/cache/dnf \
     && corepack enable yarn pnpm \
-    && npm install --global --no-fund --no-audit typescript \
+    && npm install --global --no-fund --no-audit typescript@5.7.3 \
     && rm -rf /root/.npm
 
 # code-server pre-baked to a fixed read-only prefix. The coder/code-server

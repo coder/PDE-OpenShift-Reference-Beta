@@ -47,7 +47,7 @@ jobs:
           context: images/ubi9-node-workspace
           push: true
           build-args: |
-            WORKSPACE_BASE=${{ env.REGISTRY }}/${{ env.OWNER }}/ubi9-base-workspace:latest
+            WORKSPACE_BASE=${{ env.REGISTRY }}/${{ env.OWNER }}/ubi9-base-workspace:9.7
           tags: |
             ${{ env.REGISTRY }}/${{ env.OWNER }}/ubi9-node-workspace:9.7
             ${{ env.REGISTRY }}/${{ env.OWNER }}/ubi9-node-workspace:latest

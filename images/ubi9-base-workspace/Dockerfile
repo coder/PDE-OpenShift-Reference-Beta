@@ -16,15 +16,21 @@ FROM registry.access.redhat.com/ubi9/ubi:9.7
 ARG USER=coder
 ARG UID=1001
 
-# EPEL first (fzf/ripgrep/fd-find live there), as its own layer so metadata is
-# refreshed for the next transaction.
+# bash + pipefail so piped RUNs (curl | sh) fail on upstream errors (DL4006).
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# EPEL (fzf/ripgrep/fd-find live there), as its own layer; the next dnf
+# install refreshes metadata automatically.
 RUN dnf install -y --nodocs --setopt=install_weak_deps=False \
         https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm \
-    && dnf makecache --refresh
+    && dnf clean all && rm -rf /var/cache/dnf
 
 # Core dev tooling + dotfiles deps. Pre-baked because restricted-v2 drops
 # CAP_SETUID, so `sudo dnf install` from a startup script can't elevate.
 # (curl omitted — UBI9 ships curl-minimal which conflicts with full curl.)
+# RPM versions are intentionally not pinned (DL3041): Red Hat ships rolling
+# z-stream within a minor, so we pin the UBI MINOR (ubi:9.7) instead.
+# hadolint ignore=DL3041
 RUN dnf install -y --nodocs --setopt=install_weak_deps=False \
         bash-completion ca-certificates fd-find fzf gcc git gnupg2 jq less make \
         neovim openssh-clients procps-ng python3.11 python3.11-pip ripgrep sudo \
