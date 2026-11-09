@@ -1,0 +1,40 @@
+# Redirect external image pulls to the in-cluster / disconnected mirror (P6).
+#
+# Applied only in air-gap mode. Tells CRI-O to pull the workload images from the
+# mirror instead of their public source registries. oc-mirror ALSO generates an
+# authoritative IDMS from the actual mirrored digests (see mirror/README.md);
+# this committed one documents the intended redirects for the demo's images.
+#
+# NOTE (P7): set <MIRROR_REGISTRY> to the disconnected registry host (the
+# oc-mirror target). For the simulated-on-connected demo this is the OpenShift
+# internal registry route; for a real disconnected install it is the mirror
+# registry (e.g. a Quay/mirror-registry appliance).
+apiVersion: config.openshift.io/v1
+kind: ImageDigestMirrorSet
+metadata:
+  name: pde-airgap-mirrors
+  labels:
+    app.kubernetes.io/part-of: pde-openshift-reference
+spec:
+  imageDigestMirrors:
+    # Workspace + platform app images built to GHCR
+    - source: ghcr.io/coder/pde-openshift-reference
+      mirrors:
+        - image-registry.openshift-image-registry.svc:5000/coder-workspaces
+    # Coder server
+    - source: ghcr.io/coder/coder
+      mirrors:
+        - image-registry.openshift-image-registry.svc:5000/coder
+    # Gitea
+    - source: docker.gitea.com/gitea
+      mirrors:
+        - image-registry.openshift-image-registry.svc:5000/scm
+    # RHOAI vLLM runtime
+    - source: quay.io/modh/vllm
+      mirrors:
+        - image-registry.openshift-image-registry.svc:5000/rhoai-serving
+    # Red Hat operator/ubi images (operators are mirrored by oc-mirror; this
+    # covers the ose-cli used by render/registration Jobs).
+    - source: registry.redhat.io/openshift4
+      mirrors:
+        - image-registry.openshift-image-registry.svc:5000/openshift4

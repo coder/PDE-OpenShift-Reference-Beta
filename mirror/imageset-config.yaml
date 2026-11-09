@@ -1,0 +1,46 @@
+# oc-mirror ImageSetConfiguration — operators + workload images for a
+# disconnected OpenShift install (P6).
+#
+# `task mirror` runs oc-mirror with this config to populate the mirror registry;
+# oc-mirror then generates the authoritative ImageDigestMirrorSet/CatalogSource
+# to apply to the cluster (manifests/airgap/image-digest-mirror-set.yaml is the
+# illustrative/committed target).
+#
+# NOTE (P7): pin the catalog index tag to the cluster's OCP minor (shown v4.21)
+# and confirm operator channels against gitops/operators/*. oc-mirror binary is
+# provided at deploy time (not committed).
+apiVersion: mirror.openshift.io/v1alpha2
+kind: ImageSetConfiguration
+storageConfig:
+  local:
+    path: ./oc-mirror-workspace
+mirror:
+  operators:
+    - catalog: registry.redhat.io/redhat/redhat-operator-index:v4.21
+      packages:
+        - name: openshift-gitops-operator
+          channels: [{ name: latest }]
+        - name: openshift-cert-manager-operator
+          channels: [{ name: stable-v1 }]
+        - name: openshift-external-secrets-operator
+          channels: [{ name: stable-v1 }]
+        - name: rhods-operator
+          channels: [{ name: stable }]
+        - name: rhbk-operator
+          channels: [{ name: stable-v26 }]
+        - name: nfd
+          channels: [{ name: stable }]
+    - catalog: registry.redhat.io/redhat/certified-operator-index:v4.21
+      packages:
+        - name: cloudnative-pg
+          channels: [{ name: stable-v1 }]
+        - name: gpu-operator-certified
+          channels: [{ name: v26.7 }]
+  additionalImages:
+    # Platform + workload images (non-operator).
+    - name: ghcr.io/coder/coder:v2.39.0
+    - name: ghcr.io/coder/pde-openshift-reference/ubi9-base-workspace:latest
+    - name: ghcr.io/coder/pde-openshift-reference/ubi9-node-workspace:latest
+    - name: docker.gitea.com/gitea:1.27.0-rootless
+    - name: quay.io/modh/vllm:rhoai-2.20
+    - name: registry.redhat.io/openshift4/ose-cli:latest

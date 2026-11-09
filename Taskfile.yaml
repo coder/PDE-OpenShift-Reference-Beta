@@ -24,6 +24,10 @@ version: '3'
 vars:
   MODE: '{{.MODE | default "connected"}}'            # connected | airgap
   KEYCLOAK_NS: '{{.KEYCLOAK_NS | default "keycloak"}}'
+  WORKSPACE_NS: '{{.WORKSPACE_NS | default "coder-workspaces"}}'
+  SERVING_NS: '{{.SERVING_NS | default "rhoai-serving"}}'
+  # OCI ModelCar image (internal registry) used by the air-gap InferenceService.
+  MODELCAR_IMAGE: '{{.MODELCAR_IMAGE | default "image-registry.openshift-image-registry.svc:5000/rhoai-serving/qwen25-7b-modelcar:latest"}}'
 
 tasks:
 
@@ -56,7 +60,33 @@ tasks:
     cmds:
       - task: preflight
       - |
-        echo "[deploy MODE={{.MODE}}] TODO(P1-P7): operators -> identity+SCM -> Coder -> RHOAI -> templates -> ({{.MODE}}=airgap: egress-deny + internal-registry-only)"
+        echo "[deploy MODE={{.MODE}}] TODO(P1-P5 bootstrap): oc apply gitops/bootstrap/root-app.yaml -> operators -> identity+SCM -> Coder -> RHOAI -> templates"
+      - task: '{{if eq .MODE "airgap"}}airgap-enable{{else}}airgap-disable{{end}}'
+
+  airgap-enable:
+    desc: Apply the air-gap overlay (egress-deny + registry redirect + oci model)
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+        command -v oc >/dev/null || { echo "MISSING: oc"; exit 1; }
+        echo "[airgap] applying egress NetworkPolicy + ImageDigestMirrorSet (Argo app)..."
+        oc apply -f gitops/airgap/airgap-app.yaml
+        echo "[airgap] switching the InferenceService to the OCI ModelCar (offline weights)..."
+        oc patch inferenceservice qwen25-7b -n {{.SERVING_NS}} --type=merge \
+          -p '{"spec":{"predictor":{"model":{"storageUri":"oci://{{.MODELCAR_IMAGE}}"}}}}' || \
+          echo "  (InferenceService not present yet — rerun after P4 syncs)"
+        echo "[airgap] done. Workspace egress is default-deny (in-cluster only)."
+
+  airgap-disable:
+    desc: Remove the air-gap overlay (return to connected posture)
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+        command -v oc >/dev/null || { echo "MISSING: oc"; exit 1; }
+        oc delete -f gitops/airgap/airgap-app.yaml --ignore-not-found
+        echo "[airgap] overlay removed (connected posture). Model storageUri reverts to hf:// on the next model-serving sync."
 
   reset:
     desc: Return to a clean demo state (workspaces/chats/projects), keep infra
@@ -66,11 +96,43 @@ tasks:
         echo "[reset] TODO(P7): delete demo workspaces/chats + seed projects; re-seed identity"
 
   mirror:
-    desc: Populate the internal registry for air-gap (oc-mirror)
+    desc: Populate the internal registry for air-gap (oc-mirror + modelcar)
     silent: true
     cmds:
       - |
-        echo "[mirror] TODO(P6): oc-mirror operator + workload images into the internal registry"
+        set -euo pipefail
+        command -v oc >/dev/null || { echo "MISSING: oc"; exit 1; }
+        echo "[mirror 1/3] workspace images GHCR -> internal registry..."
+        NS={{.WORKSPACE_NS}} ./images/mirror-to-internal-registry.sh
+        echo "[mirror 2/3] build + push the Qwen OCI ModelCar (needs HF egress at build time)..."
+        if command -v podman >/dev/null; then BUILD=podman; elif command -v docker >/dev/null; then BUILD=docker; else echo "  SKIP: no podman/docker"; BUILD=""; fi
+        if [ -n "$BUILD" ]; then
+          $BUILD build -t "{{.MODELCAR_IMAGE}}" mirror/modelcar
+          $BUILD push --tls-verify=false "{{.MODELCAR_IMAGE}}" 2>/dev/null || $BUILD push "{{.MODELCAR_IMAGE}}"
+        fi
+        echo "[mirror 3/3] operators + workload images via oc-mirror..."
+        if command -v oc-mirror >/dev/null; then
+          oc-mirror --config mirror/imageset-config.yaml docker://$(oc get route -n openshift-image-registry default-route -o jsonpath='{.spec.host}')
+        else
+          echo "  SKIP: oc-mirror not installed. Install it and run:"
+          echo "    oc-mirror --config mirror/imageset-config.yaml docker://<MIRROR_REGISTRY>"
+        fi
+        echo "[mirror] done."
+
+  vendor-modules:
+    desc: Pre-fetch Coder registry modules into each template's cache (air-gap template push)
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+        command -v terraform >/dev/null || { echo "MISSING: terraform"; exit 1; }
+        for t in workspace-basic workspace-agent; do
+          echo "[vendor] $t ..."
+          ( cd templates/$t && terraform init -backend=false -input=false >/dev/null && terraform get -update )
+        done
+        echo "[vendor] modules cached under templates/*/.terraform/modules."
+        echo "         Push air-gap templates from a provisioner that mounts this cache,"
+        echo "         or vendor the module source and set 'source = ./vendor/<module>'."
 
   status:
     desc: Show Argo apps + key workloads

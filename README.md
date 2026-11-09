@@ -15,12 +15,12 @@ on OpenShift + OpenShift AI (RHOAI)**. The same manifests run in two modes:
 | Workspace egress | allowed | **default‑deny** (NetworkPolicy / Agent Firewall) |
 | Secrets | generated in‑cluster / provided at deploy — **never in git** | same |
 
-> **Status: workspaces landed (Phases 0–5).** Operators (P1), Keycloak identity
-> (P2a), Gitea SCM (P2b), Coder (P3), RHOAI model serving (P4), and **workspace
-> templates** (P5) — `workspace-basic` + `workspace-agent` (offline AI CLIs via
-> the AI Gateway) on pre-baked UBI9 images — are in `main`. Upcoming: air‑gap
-> mode (P6), fresh‑cluster acceptance (P7), docs/diagrams (P8). Locked
-> decisions: [`docs/decisions.md`](docs/decisions.md).
+> **Status: air‑gap mode landed (Phases 0–6).** Operators (P1), Keycloak (P2a),
+> Gitea SCM (P2b), Coder (P3), RHOAI model serving (P4), workspace templates
+> (P5), and **air‑gap mode** (P6) — default‑deny workspace egress, internal‑
+> registry redirect, OCI ModelCar offline weights, oc‑mirror config, `MODE=airgap`
+> toggle — are in `main`. Upcoming: fresh‑cluster acceptance (P7), docs/diagrams
+> (P8). Locked decisions: [`docs/decisions.md`](docs/decisions.md).
 
 ## Design in one screen
 - **Single IdP** — Keycloak/RHBK only. (D1)

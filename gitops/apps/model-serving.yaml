@@ -15,6 +15,15 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: rhoai-serving
+  # Air-gap mode swaps the model storageUri hf:// -> oci:// (task airgap-enable).
+  # Ignore that field so Argo keeps the connected default (hf://) in git while
+  # not reverting the in-cluster air-gap patch.
+  ignoreDifferences:
+    - group: serving.kserve.io
+      kind: InferenceService
+      name: qwen25-7b
+      jsonPointers:
+        - /spec/predictor/model/storageUri
   syncPolicy:
     automated:
       prune: true
