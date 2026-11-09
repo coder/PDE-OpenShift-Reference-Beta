@@ -55,3 +55,13 @@ auth/
 # OpenShift installer scratch (never commit)
 terraform/.cluster/
 .terraform.lock.hcl
+
+# P7 deploy-time artifacts — NEVER commit (environment specifics / secrets, D5)
+terraform/terraform.tfvars
+terraform/*.tfstate
+terraform/*.tfstate.*
+install-config.yaml
+install/install-config.yaml
+.openshift_install.log
+.openshift_install_state.json
+auth/

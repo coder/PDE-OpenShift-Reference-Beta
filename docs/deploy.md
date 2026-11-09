@@ -1,56 +1,86 @@
 # Deploy & reset runbook
 
-> Scaffold — the commands below are the intended contract; targets fill in across
-> Phases 1–7. Goal: **one‑command, idempotent, no hand‑run scripts, no code↔live drift.**
+Goal: **one‑command in‑cluster deploy, idempotent, no code↔live drift.** The
+repo brings the *desired state*; this runbook covers standing up a fresh AWS
+account end‑to‑end. Nothing secret is committed (D5).
 
-## Prerequisites (provided at deploy time — never committed, per D5)
-- AWS creds for the target account **`<AWS_ACCOUNT_ID>`** (`AWS_PROFILE` / SSO), region `us-east-1` — the account is supplied at deploy time, never committed.
-- `oc`, `aws`, `terraform` on PATH (`task preflight` checks).
-- A **Red Hat pull secret** (for RHOAI/RHBK operator images).
-- A **Coder license** key (needed at the air‑gap/Agents phase).
-- `base_domain` for the new DNS (default `rh-pde.coderdemo.io`; see `terraform/terraform.tfvars.example`).
+## 0. Fresh-account prerequisites (one-time, out of `task`)
+1. **AWS quotas** — request **G/VT instance vCPU** quota (for `g5.2xlarge` A10G;
+   0 by default) plus standard vCPU for the OCP control/worker nodes; check
+   EIP/VPC/NAT quotas for an IPI install.
+2. **DNS** — create + delegate the Route53 public zone for `base_domain`
+   (`cd terraform && terraform apply -target=aws_route53_zone.base`, then add the
+   output NS records to the parent `coderdemo.io` zone).
+3. **Red Hat pull secret** — from console.redhat.com; used as the cluster global
+   pull secret at install (for `registry.redhat.io`: RHOAI, RHBK, ose‑cli, UBI).
+4. **GHCR images** — the `build-images` workflow pushes the workspace images;
+   make the GHCR packages public or give the cluster a GHCR pull secret
+   (connected mode). Air‑gap uses `task mirror` instead.
+5. **Coder license** — applied post‑deploy (`coder licenses add`); needed for the
+   Premium features this demo uses (OIDC group→role sync, AI Gateway).
 
-## Deploy
+## 1. Install the cluster (STS/OIDC — required for IRSA)
+See [`install/`](../install/). Summary:
 ```bash
-task preflight                 # tooling + access checks
-task deploy                    # connected mode (default)
-task deploy MODE=airgap        # air-gap-ready mode
-task status                    # Argo apps + InferenceService health
+cp install/install-config.yaml.example install-config.yaml   # fill pull secret + sshKey (NOT committed)
+openshift-install create manifests --dir .
+ccoctl aws create-all --name <cluster> --region us-east-1 \
+  --credentials-requests-dir <crs> --output-dir .            # creates the IAM OIDC provider
+openshift-install create cluster --dir .
 ```
-What `deploy` will do (phased):
-1. **P1** cluster prereqs (terraform) + operator subscriptions (GitOps, cert‑manager, RHOAI, ESO, CNPG).
-2. **P2** Keycloak (realm `demo`, secrets generated in‑cluster) + in‑cluster Git + committed Argo RBAC.
-3. **P3** Coder (Helm via GitOps), OIDC → Keycloak, routes/TLS, CNPG Postgres.
-4. **P4** RHOAI ServingRuntime + InferenceService (Qwen2.5‑7B on A10G) + AI Gateway wiring.
-5. **P5** workspace templates from internal‑registry images; validate a Coder Agents run.
-6. **P6** (airgap) egress default‑deny + internal‑registry‑only + Coder air‑gapped bundle.
 
-## Credentials (retrieving the generated demo logins)
-Per **D5**, no secret is ever committed. The demo personas' passwords are
-generated **in‑cluster** at deploy time (ESO `Password` generators) and live
-only in `Secret/keycloak-realm-secrets` (ns `keycloak`); Keycloak itself stores
-only hashes. Retrieve the human logins — the demo team needs these — with:
+## 2. IRSA roles (after install)
+```bash
+oc get authentication cluster -o jsonpath='{.spec.serviceAccountIssuer}'   # -> oidc_* in terraform.tfvars
+cd terraform && terraform apply                                            # creates cert-manager (+ optional Bedrock) roles
+export CERT_MANAGER_ROLE_ARN=$(terraform output -raw cert_manager_role_arn)
+```
+
+## 3. GPU node
+```bash
+task gpu-node        # derives a g5.2xlarge GPU MachineSet from a worker MachineSet
+```
+Wait for the node to join and the NVIDIA GPU operator to label it
+`nvidia.com/gpu.present=true`.
+
+## 4. Deploy
+```bash
+task preflight                 # tooling + cluster login + warns on missing IRSA/pull-secret
+task deploy                    # connected (default)
+# or, air-gap:
+task mirror                    # images + OCI model + oc-mirror into the internal/mirror registry
+task deploy MODE=airgap
+task status                    # Argo apps + InferenceService + routes + GPU node
+```
+`task deploy` runs: **bootstrap** (operators → Argo root app‑of‑apps) →
+**irsa** (annotate cert‑manager SA from `CERT_MANAGER_ROLE_ARN`) → **gpu-node** →
+**wait-apps** (Argo Healthy+Synced) → **push-templates** (needs `coder login`) →
+air‑gap overlay toggle (`MODE`).
+
+## Credentials
+No secret is committed. Persona passwords are generated in‑cluster (ESO) and live
+only in `Secret/keycloak-realm-secrets`:
 ```bash
 task creds     # personas (alice/bob/demoadm) + Keycloak admin console, read live
 ```
-`task creds` reads straight from the cluster and prints nothing to disk/git.
-It requires **cluster‑admin** (`kube:admin` at install; `demoadm` works once the
-realm is up). The machine OIDC client secrets (`*_client_secret`) are wired
-automatically and are intentionally **not** printed. Override the namespace with
-`task creds KEYCLOAK_NS=<ns>` if needed.
+Requires cluster‑admin (`kube:admin` at install; `demoadm` once the realm is up).
+Machine client secrets are wired automatically and intentionally not printed.
+Override the namespace with `task creds KEYCLOAK_NS=<ns>`.
 
 ## Reset (between demos)
 ```bash
-task reset     # delete demo workspaces/chats + re-seed Git projects + re-seed identity; infra untouched
+task reset     # re-seed the demo realm; drop demo workspaces via Coder UI/CLI; infra untouched
 ```
 
 ## Teardown
 ```bash
-task destroy   # terraform destroy (+ openshift-install destroy)
+DESTROY_CONFIRM=yes INSTALL_DIR=<dir> task destroy   # openshift-install destroy
+cd terraform && terraform destroy                    # Route53 zone + IRSA roles
 ```
 
 ## Acceptance (definition of done — P7)
-Fresh account → `task deploy` → SSO‑gated Coder, a workspace from an internal‑registry
-image, a Coder Agents chat driving the in‑cluster RHOAI model; `task deploy MODE=airgap`
-denies workspace egress yet the agent still answers from in‑cluster; `task reset`
-returns to clean. No hand‑run scripts; no code↔live drift.
+Fresh account → steps 0–4 → SSO‑gated Coder, a `workspace-basic` from the
+internal‑registry image, a `workspace-agent` whose AI CLI answers from the
+in‑cluster RHOAI model; `task deploy MODE=airgap` denies workspace egress yet the
+agent still answers in‑cluster; `task reset` returns to clean. No hand‑run
+scripts; no code↔live drift.

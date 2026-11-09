@@ -1,22 +1,24 @@
 # =============================================================================
 # PDE-OpenShift-Reference — task runner (go-task / https://taskfile.dev).
 #
-# Scaffold stage: tasks are wired with their intended contract but most are
-# stubbed (echo + TODO) until the matching build phase lands. Nothing here
-# mutates a cluster yet — except `creds`, which only reads live Secrets.
+# Orchestrates the in-cluster deploy on an ALREADY-INSTALLED OpenShift cluster
+# (bring-up = openshift-install + terraform, see install/ and terraform/).
+# Prereqs for a fresh account are in docs/deploy.md.
 #
 # Usage:
-#   task              - list available tasks (same as `task --list`)
-#   task help         - list available tasks
-#   task preflight    - check required CLIs + context
-#   task deploy       - one-command deploy (connected mode, default)
-#   task deploy MODE=airgap           - air-gap-ready mode
-#   task creds        - print demo logins, read live from the cluster
-#   task creds KEYCLOAK_NS=<ns>        - override the Keycloak namespace
-#   task reset        - return to a clean demo state
-#   task status       - show Argo apps + key workloads
-#   task mirror       - populate the internal registry for air-gap
-#   task destroy      - tear down the cluster + infra
+#   task                              - list tasks
+#   task preflight                    - check tooling + cluster login
+#   task deploy                       - bootstrap -> apps -> IRSA -> GPU -> templates (connected)
+#   task deploy MODE=airgap           - + air-gap overlay (run `task mirror` first)
+#   task bootstrap                    - operators + Argo root app-of-apps
+#   task gpu-node                     - derive a g5.2xlarge GPU MachineSet
+#   task push-templates               - coder templates push (needs `coder login`)
+#   task creds [KEYCLOAK_NS=<ns>]      - print demo logins (reads live Secrets)
+#   task status | reset | mirror | destroy
+#
+# Deploy-time env (never committed, D5):
+#   CERT_MANAGER_ROLE_ARN   - IRSA role for cert-manager->Route53 (terraform output)
+#   CODER_BEDROCK_ROLE_ARN  - IRSA role for Coder->Bedrock (optional, connected)
 # =============================================================================
 
 version: '3'
@@ -26,6 +28,8 @@ vars:
   KEYCLOAK_NS: '{{.KEYCLOAK_NS | default "keycloak"}}'
   WORKSPACE_NS: '{{.WORKSPACE_NS | default "coder-workspaces"}}'
   SERVING_NS: '{{.SERVING_NS | default "rhoai-serving"}}'
+  GITOPS_NS: '{{.GITOPS_NS | default "openshift-gitops"}}'
+  CODER_NS: '{{.CODER_NS | default "coder"}}'
   # OCI ModelCar image (internal registry) used by the air-gap InferenceService.
   MODELCAR_IMAGE: '{{.MODELCAR_IMAGE | default "image-registry.openshift-image-registry.svc:5000/rhoai-serving/qwen25-7b-modelcar:latest"}}'
 
@@ -44,24 +48,137 @@ tasks:
     silent: true
 
   preflight:
-    desc: Check required CLIs + context (oc, aws, terraform)
+    desc: Check tooling + cluster login
     silent: true
     cmds:
       - |
         set -euo pipefail
-        echo "[preflight] checking tooling + cluster/AWS access..."
-        command -v oc  >/dev/null || { echo "  MISSING: oc"; exit 1; }
-        command -v aws >/dev/null || { echo "  MISSING: aws"; exit 1; }
-        echo "  TODO(P1): assert KUBECONFIG reachable, AWS account == <AWS_ACCOUNT_ID>, base_domain set"
+        echo "[preflight] tooling + cluster access..."
+        command -v oc >/dev/null || { echo "  MISSING: oc"; exit 1; }
+        oc whoami >/dev/null 2>&1 || { echo "  NOT LOGGED IN: set KUBECONFIG or 'oc login'"; exit 1; }
+        echo "  cluster: $(oc whoami --show-server)"
+        echo "  mode:    {{.MODE}}"
+        [ -n "${CERT_MANAGER_ROLE_ARN:-}" ] || echo "  WARN: CERT_MANAGER_ROLE_ARN unset -> wildcard TLS falls back to the default ingress cert"
+        oc get secret pull-secret -n openshift-config >/dev/null 2>&1 || echo "  WARN: cluster pull-secret not found (needed for registry.redhat.io images)"
 
   deploy:
-    desc: One-command deploy (MODE=connected|airgap)
+    desc: Deploy on an installed cluster (MODE=connected|airgap)
     silent: true
     cmds:
       - task: preflight
-      - |
-        echo "[deploy MODE={{.MODE}}] TODO(P1-P5 bootstrap): oc apply gitops/bootstrap/root-app.yaml -> operators -> identity+SCM -> Coder -> RHOAI -> templates"
+      - task: bootstrap
+      - task: irsa
+      - task: gpu-node
+      - task: wait-apps
+      - task: push-templates
       - task: '{{if eq .MODE "airgap"}}airgap-enable{{else}}airgap-disable{{end}}'
+      - |
+        echo "[deploy] done (MODE={{.MODE}}). Next: 'task creds' for demo logins; 'task status' for health."
+
+  bootstrap:
+    desc: Install operators (OLM) + apply the Argo root app-of-apps
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+        command -v oc >/dev/null || { echo "MISSING: oc"; exit 1; }
+        echo "[bootstrap] applying operator subscriptions..."
+        oc apply -f gitops/operators/
+        echo "[bootstrap] waiting for the Argo CD (Applications) CRD..."
+        for i in $(seq 1 60); do
+          oc get crd applications.argoproj.io >/dev/null 2>&1 && break
+          echo "  waiting for OpenShift GitOps operator ($i)"; sleep 10
+        done
+        oc get crd applications.argoproj.io >/dev/null 2>&1 || { echo "  Argo CRD not ready"; exit 1; }
+        echo "[bootstrap] applying root app-of-apps..."
+        oc apply -f gitops/bootstrap/root-app.yaml
+        echo "[bootstrap] Argo is reconciling all apps (track: task status)."
+
+  irsa:
+    desc: Annotate the cert-manager (+ optional Coder) ServiceAccount with its IRSA role
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+        command -v oc >/dev/null || { echo "MISSING: oc"; exit 1; }
+        if [ -z "${CERT_MANAGER_ROLE_ARN:-}" ]; then
+          echo "[irsa] CERT_MANAGER_ROLE_ARN unset -> skipping (wildcard cert uses default ingress cert)."
+        else
+          echo "[irsa] waiting for the cert-manager ServiceAccount..."
+          for i in $(seq 1 60); do oc get sa cert-manager -n cert-manager >/dev/null 2>&1 && break; sleep 10; done
+          oc annotate sa cert-manager -n cert-manager eks.amazonaws.com/role-arn="$CERT_MANAGER_ROLE_ARN" --overwrite
+          oc rollout restart deploy -n cert-manager -l app.kubernetes.io/name=cert-manager 2>/dev/null || true
+          echo "[irsa] cert-manager SA annotated."
+        fi
+        if [ -n "${CODER_BEDROCK_ROLE_ARN:-}" ]; then
+          oc get sa coder -n {{.CODER_NS}} >/dev/null 2>&1 \
+            && oc annotate sa coder -n {{.CODER_NS}} eks.amazonaws.com/role-arn="$CODER_BEDROCK_ROLE_ARN" --overwrite \
+            && echo "[irsa] coder SA annotated for Bedrock." || echo "[irsa] coder SA not present yet; re-run after Coder syncs."
+        fi
+
+  gpu-node:
+    desc: Ensure a g5.2xlarge GPU MachineSet (derived from a worker MachineSet)
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+        command -v oc >/dev/null || { echo "MISSING: oc"; exit 1; }
+        if oc get machineset -n openshift-machine-api -o name 2>/dev/null | grep -qi gpu; then
+          echo "[gpu] GPU MachineSet already present."; exit 0
+        fi
+        WS=$(oc get machineset -n openshift-machine-api -o name 2>/dev/null | head -1 || true)
+        if [ -z "$WS" ]; then
+          echo "[gpu] no worker MachineSet found; apply install/gpu-machineset.yaml.example by hand."; exit 0
+        fi
+        echo "[gpu] deriving a g5.2xlarge GPU MachineSet from $WS ..."
+        oc get "$WS" -n openshift-machine-api -o json | python3 -c '
+        import json,sys
+        ms=json.load(sys.stdin); md=ms["metadata"]; base=md["name"]; new=base+"-gpu"
+        for k in ["resourceVersion","uid","creationTimestamp","generation","managedFields","selfLink","annotations"]:
+            md.pop(k,None)
+        ms.pop("status",None); md["name"]=new
+        L="machine.openshift.io/cluster-api-machineset"
+        ms["spec"]["replicas"]=1
+        ms["spec"]["selector"]["matchLabels"][L]=new
+        tpl=ms["spec"]["template"]; tpl["metadata"]["labels"][L]=new
+        spec=tpl["spec"]; spec["providerSpec"]["value"]["instanceType"]="g5.2xlarge"
+        spec.setdefault("taints",[])
+        if not any(t.get("key")=="nvidia.com/gpu" for t in spec["taints"]):
+            spec["taints"].append({"key":"nvidia.com/gpu","value":"true","effect":"NoSchedule"})
+        print(json.dumps(ms))
+        ' | oc apply -f -
+        echo "[gpu] created. Wait for the node + NVIDIA operator to label it nvidia.com/gpu.present=true."
+
+  wait-apps:
+    desc: Wait for all Argo Applications to be Healthy + Synced
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+        command -v oc >/dev/null || { echo "MISSING: oc"; exit 1; }
+        echo "[wait] waiting for Argo apps Healthy+Synced (up to ~20m)..."
+        for i in $(seq 1 80); do
+          out=$(oc get applications.argoproj.io -n {{.GITOPS_NS}} \
+            -o jsonpath='{range .items[*]}{.metadata.name}={.status.health.status},{.status.sync.status}{"\n"}{end}' 2>/dev/null || true)
+          notready=$(printf '%s\n' "$out" | grep -c -vE '=Healthy,Synced$' || true)
+          [ "${notready:-1}" -eq 0 ] \
+            && { echo "[wait] all apps Healthy+Synced."; printf '%s\n' "$out" | sed 's/^/  /'; break; }
+          sleep 15
+        done
+
+  push-templates:
+    desc: Push the workspace templates to Coder (needs `coder login`)
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+        if ! command -v coder >/dev/null; then
+          echo "[templates] coder CLI not found -> skipping. Then: coder login https://coder.apps.cluster.<domain> && task push-templates"; exit 0
+        fi
+        for t in workspace-basic workspace-agent; do
+          echo "[templates] pushing $t ..."
+          coder templates push "$t" -d "templates/$t" --yes
+        done
 
   airgap-enable:
     desc: Apply the air-gap overlay (egress-deny + registry redirect + oci model)
@@ -89,11 +206,35 @@ tasks:
         echo "[airgap] overlay removed (connected posture). Model storageUri reverts to hf:// on the next model-serving sync."
 
   reset:
-    desc: Return to a clean demo state (workspaces/chats/projects), keep infra
+    desc: Return to a clean demo state (re-seed realm, drop demo workspaces), keep infra
     silent: true
     cmds:
       - |
-        echo "[reset] TODO(P7): delete demo workspaces/chats + seed projects; re-seed identity"
+        set -euo pipefail
+        command -v oc >/dev/null || { echo "MISSING: oc"; exit 1; }
+        echo "[reset] re-seeding the Keycloak demo realm (re-run the import hook)..."
+        oc delete job keycloak-realm-import -n {{.KEYCLOAK_NS}} --ignore-not-found
+        oc -n {{.GITOPS_NS}} annotate application keycloak argocd.argoproj.io/refresh=hard --overwrite >/dev/null 2>&1 || true
+        echo "[reset] to rotate demo credentials, delete the generated Secret (ESO regenerates):"
+        echo "           oc delete secret keycloak-realm-secrets -n {{.KEYCLOAK_NS}}"
+        echo "[reset] to wipe demo workspaces/chats, use the Coder UI/CLI (coder delete ...)."
+        echo "[reset] infra untouched."
+
+  status:
+    desc: Show Argo apps + key workloads
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+        command -v oc >/dev/null || { echo "MISSING: oc"; exit 1; }
+        echo "=== Argo Applications ==="
+        oc get applications.argoproj.io -n {{.GITOPS_NS}} 2>/dev/null || echo "  (GitOps not installed)"
+        echo "=== InferenceService ==="
+        oc get inferenceservice -A 2>/dev/null || echo "  (KServe not ready)"
+        echo "=== Routes ==="
+        oc get route -A 2>/dev/null | grep -iE "coder|keycloak|gitea" || echo "  (none yet)"
+        echo "=== GPU nodes ==="
+        oc get nodes -l nvidia.com/gpu.present=true 2>/dev/null || echo "  (no GPU node yet)"
 
   mirror:
     desc: Populate the internal registry for air-gap (oc-mirror + modelcar)
@@ -134,13 +275,6 @@ tasks:
         echo "         Push air-gap templates from a provisioner that mounts this cache,"
         echo "         or vendor the module source and set 'source = ./vendor/<module>'."
 
-  status:
-    desc: Show Argo apps + key workloads
-    silent: true
-    cmds:
-      - |
-        echo "[status] TODO(P1): oc get applications -n openshift-gitops; oc get inferenceservice -A"
-
   creds:
     desc: Print demo login credentials (personas + Keycloak admin), read live from the cluster
     silent: true
@@ -166,8 +300,19 @@ tasks:
         else echo "  (keycloak-initial-admin not created yet)"; fi
 
   destroy:
-    desc: Tear down the cluster + infra
+    desc: Tear down the cluster + AWS prerequisites (guarded)
     silent: true
     cmds:
       - |
-        echo "[destroy] TODO(P1): terraform destroy (+ openshift-install destroy)"
+        set -euo pipefail
+        echo "[destroy] This DESTROYS the cluster + AWS prerequisites."
+        echo "  1) openshift-install destroy cluster --dir <INSTALL_DIR>"
+        echo "  2) (cd terraform && terraform destroy)   # Route53 zone + IRSA roles"
+        if [ "${DESTROY_CONFIRM:-}" != "yes" ]; then
+          echo "[destroy] NOT running. Set DESTROY_CONFIRM=yes INSTALL_DIR=<dir> to execute step 1 here."
+          exit 0
+        fi
+        [ -n "${INSTALL_DIR:-}" ] && command -v openshift-install >/dev/null \
+          && openshift-install destroy cluster --dir "$INSTALL_DIR" \
+          || echo "[destroy] INSTALL_DIR unset or openshift-install missing — skipping cluster destroy."
+        echo "[destroy] run 'cd terraform && terraform destroy' separately for the AWS prereqs."

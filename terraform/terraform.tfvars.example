@@ -1,19 +1,25 @@
 # Example Terraform variables. Copy to terraform.tfvars (gitignored) and edit.
-# terraform.tfvars is NEVER committed (contains environment specifics; see D5).
+# terraform.tfvars is NEVER committed (environment specifics; see D5).
 
 # --- Cloud / account ---
 aws_region  = "us-east-1"
-aws_profile = "<AWS_ACCOUNT_ID>_AWSAdministratorAccess"   # AWS sandbox <AWS_ACCOUNT_ID>
+aws_profile = ""                       # AWS CLI/SSO profile for the target account (empty = default chain)
 
-# --- DNS / naming (new names, no longer referencing rhsummit) ---
+# --- DNS / naming ---
 # Parent public zone is coderdemo.io (delegated). The cluster installs under
 # <cluster_name>.<base_domain>; apps at *.apps.<cluster_name>.<base_domain>.
-base_domain  = "rh-pde.coderdemo.io"    # CONFIRM before provisioning
-cluster_name = "cluster"             # -> apps.cluster.rh-pde.coderdemo.io
+base_domain  = "rh-pde.coderdemo.io"   # CONFIRM before provisioning
+cluster_name = "cluster"               # -> apps.cluster.rh-pde.coderdemo.io
 
-# --- Run mode ---
-# deploy_mode = "connected"   # connected | airgap  (also settable via `task deploy MODE=...`)
+# Set false if the zone already exists / is delegated (read as a data source).
+create_route53_zone = true
+
+# --- IRSA (fill in AFTER openshift-install, then re-apply) ---
+# oc get authentication cluster -o jsonpath='{.spec.serviceAccountIssuer}'
+# oidc_provider_arn = "arn:aws:iam::<AWS_ACCOUNT_ID>:oidc-provider/<bucket>.s3.<region>.amazonaws.com/<infra-id>"
+# oidc_issuer_host  = "<bucket>.s3.<region>.amazonaws.com/<infra-id>"
+# enable_bedrock    = false            # true only for connected-mode Bedrock AI
 
 # --- Secrets are NOT set here (D5) ---
-# Red Hat pull secret + Coder license are provided at deploy time via env/task,
-# not through tfvars. Demo/OIDC secrets are generated in-cluster (ESO generators).
+# Red Hat pull secret + Coder license are provided at deploy time via env/task.
+# Demo/OIDC secrets are generated in-cluster (ESO generators).
