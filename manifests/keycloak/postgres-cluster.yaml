@@ -4,7 +4,7 @@
 # the `keycloak-db-app` Secret (keys: username, password, uri, host, ...); the
 # Keycloak CR reads username/password from it. No credential ever in git.
 #
-# Same CNPG operator as Coder's Postgres (manifests/postgres/) — one data-layer
+# Same CNPG operator as Coder's Postgres (manifests/coder/postgres-cluster.yaml) — one data-layer
 # shape across the platform.
 ---
 apiVersion: postgresql.cnpg.io/v1
