@@ -1,0 +1,56 @@
+# cert-manager ClusterIssuers — ACME (Let's Encrypt) with Route53 dns01 (ADR D5).
+#
+# dns01 is required because we issue WILDCARD certs (*.apps…, *.coder.apps…),
+# which http01 cannot satisfy. The ACME account private key is created by
+# cert-manager (privateKeySecretRef) — operator-generated, never committed.
+#
+# AWS auth = IRSA (no static keys, D5): the cert-manager controller
+# ServiceAccount (`cert-manager` in ns `cert-manager`) must be annotated at
+# DEPLOY TIME with the Route53 IAM role, e.g.
+#   eks.amazonaws.com/role-arn: arn:aws:iam::<AWS_ACCOUNT_ID>:role/<cluster>-cert-manager-route53
+# (terraform output; applied via task/env, not committed — same pattern as the
+# Coder Bedrock SA). The issuer below carries no credentials.
+#
+# hostedZoneID is intentionally omitted — cert-manager auto-discovers the zone
+# by domain; pin it only if the account has overlapping zones.
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+  labels:
+    app.kubernetes.io/part-of: pde-openshift-reference
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    # Set to a monitored address at deploy time (expiry/renewal notices).
+    email: pki@rh-pde.coderdemo.io
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+      - dns01:
+          route53:
+            region: us-east-1
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+  labels:
+    app.kubernetes.io/part-of: pde-openshift-reference
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  acme:
+    # Staging — higher rate limits, untrusted chain. Use while iterating to
+    # avoid burning the prod Let's Encrypt weekly quota.
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: pki@rh-pde.coderdemo.io
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+      - dns01:
+          route53:
+            region: us-east-1

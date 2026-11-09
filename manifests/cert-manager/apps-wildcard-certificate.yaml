@@ -1,0 +1,38 @@
+# Wildcard TLS certificate for all app routes, used as the IngressController's
+# defaultCertificate (ADR D5).
+#
+# Why not per-Route cert-manager annotations: the Red Hat cert-manager operator
+# does NOT reconcile OpenShift `Route` objects, so per-route annotations are
+# no-ops. The canonical pattern is one wildcard cert set as the router's default
+# — every edge-terminated Route then serves a valid cert with no per-route wiring.
+#
+# Two wildcard SANs in one cert:
+#   *.apps.cluster.rh-pde.coderdemo.io        → keycloak, coder, gitea, grafana, argocd
+#   *.coder.apps.cluster.rh-pde.coderdemo.io  → Coder workspace apps (subdomain apps;
+#                                               a single-label wildcard can't cover this
+#                                               second level, hence the explicit SAN)
+#
+# The secret `apps-wildcard-cert` is created in openshift-ingress and referenced
+# by the IngressController (see ingresscontroller-default-cert.yaml).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: apps-wildcard-cert
+  namespace: openshift-ingress
+  labels:
+    app.kubernetes.io/part-of: pde-openshift-reference
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  secretName: apps-wildcard-cert
+  dnsNames:
+    - "*.apps.cluster.rh-pde.coderdemo.io"
+    - "*.coder.apps.cluster.rh-pde.coderdemo.io"
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-prod
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  usages:
+    - server auth
