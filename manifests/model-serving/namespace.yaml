@@ -1,0 +1,10 @@
+# Namespace for the demo model-serving workloads (InferenceService +
+# ServingRuntime). Plain namespace — RawDeployment needs no mesh/sidecar.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rhoai-serving
+  labels:
+    app.kubernetes.io/part-of: pde-openshift-reference
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"

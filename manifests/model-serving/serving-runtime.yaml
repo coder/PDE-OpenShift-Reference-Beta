@@ -1,0 +1,49 @@
+# vLLM ServingRuntime for the Qwen2.5-7B demo model (ADR D4).
+#
+# Dedicated runtime (not multi-model). The model is mounted at /mnt/models by
+# the KServe storage-initializer from the InferenceService storageUri; vLLM
+# serves an OpenAI-compatible API on :8080 that Coder's AI Gateway consumes.
+#
+# D4 settings: 16K context, tensor-parallel-size 1 (single A10G), Hermes tool
+# calling (--tool-call-parser hermes + --enable-auto-tool-choice).
+#
+# NOTE (version/image): `quay.io/modh/vllm` is the Red Hat-built vLLM runtime
+# image; PIN the tag to the installed RHOAI version at P7 (shown here as a
+# recent RHOAI 2.x tag). The serving.kserve.io/v1alpha1 ServingRuntime API is
+# stable across RHOAI 2.x.
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: vllm-qwen
+  namespace: rhoai-serving
+  labels:
+    app.kubernetes.io/part-of: pde-openshift-reference
+  annotations:
+    openshift.io/display-name: "vLLM — Qwen2.5-7B-Instruct"
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  supportedModelFormats:
+    - name: vLLM
+      autoSelect: true
+  multiModel: false
+  containers:
+    - name: kserve-container
+      image: quay.io/modh/vllm:rhoai-2.20
+      command:
+        - python
+        - -m
+        - vllm.entrypoints.openai.api_server
+      args:
+        - "--port=8080"
+        - "--model=/mnt/models"
+        - "--served-model-name=qwen2.5-7b-instruct"
+        - "--max-model-len=16384"
+        - "--tensor-parallel-size=1"
+        - "--enable-auto-tool-choice"
+        - "--tool-call-parser=hermes"
+      env:
+        - name: HF_HOME
+          value: /tmp/hf
+      ports:
+        - containerPort: 8080
+          protocol: TCP
