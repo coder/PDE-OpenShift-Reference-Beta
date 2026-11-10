@@ -1,21 +1,23 @@
 # templates
 
 Coder workspace templates for OpenShift (ADR D7). Two templates, both running
-as `restricted-v2` pods from the pre-baked `ubi9-node-workspace` image
-(`images/`), cloning from the in-cluster Gitea via Coder external auth.
+as `restricted-v2` pods from the `ubi9-node-workspace` image (`images/`,
+code-server pre-baked), cloning from the in-cluster Gitea via Coder external auth.
 
 | Template | Purpose |
 |----------|---------|
-| [`workspace-basic`](workspace-basic/) | Browser dev: code-server (offline) + optional Gitea clone + dotfiles. No AI. |
-| [`workspace-agent`](workspace-agent/) | `basic` + offline **Claude Code** & **Codex** routed through the Coder **AI Gateway** (OpenAI provider → in-cluster vLLM Qwen; Bedrock/Anthropic = connected mode). |
+| [`workspace-basic`](workspace-basic/) | Browser dev: code-server (pre-baked, offline start) + optional Gitea clone + dotfiles. No AI. |
+| [`workspace-agent`](workspace-agent/) | `basic` + **Claude Code** & **Codex** (installed by pinned registry modules at workspace start) routed through the Coder **AI Gateway** (provider `openai` → in-cluster vLLM Qwen; provider `bedrock` = connected mode). |
 
 ## Push a template
 ```bash
-coder templates push workspace-basic -d ./templates/workspace-basic
-coder templates push workspace-agent -d ./templates/workspace-agent
+task push-templates      # both templates; sets image_registry (per MODE) + anthropic_model
 ```
-Registry modules (`registry.coder.com/...`) are fetched at push time; for
-air-gap they are vendored/mirrored in Phase 6.
+Prefer this over a bare `coder templates push`: a push reuses the previous
+version's variable values, so stale values would carry over. Registry modules
+(`registry.coder.com/...`) are fetched at push time; for air-gap, pre-fetch
+them with `task vendor-modules`. The agent template's provider and module pins
+are listed in [`workspace-agent/`](workspace-agent/#pins-verified-live-2026-11-10).
 
 ## Images
 The `image_registry` variable picks where workspaces pull `ubi9-node-workspace:latest`.
@@ -29,5 +31,6 @@ Override with `task push-templates WORKSPACE_IMAGE_REGISTRY=<registry/path>`.
 Workspaces run in the `coder-workspaces` namespace (created by `coder-config`;
 the Coder chart's `workspaceNamespaces` grants its ServiceAccount pod/PVC rights there).
 
-**Validated:** `terraform validate` (coder + kubernetes providers). Live
-workspace create + AI round-trip to the in-cluster model is a P7 item.
+**Validated:** `terraform validate`, plus a live run (2026-11-10, connected):
+both templates build workspaces, and Codex → vLLM Qwen and Claude Code →
+Bedrock both complete round-trips through the AI Gateway.

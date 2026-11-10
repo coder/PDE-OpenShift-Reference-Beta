@@ -8,14 +8,16 @@ what we picked, why, and the alternative we rejected. (Distilled from the RH Sum
 
 ## D1 — Single IdP: Keycloak (RHBK) only ✅
 **Picked:** Keycloak/RHBK as the one identity provider for Coder (and, in‑cluster,
-for Git + Grafana). **Why:** drops dual‑IdP + group‑sync complexity; GitHub OAuth
+for Git; Grafana if/when D8 lands). Users and groups are provisioned
+**just‑in‑time at OIDC login** (Coder group/role sync, Gitea auto‑registration) —
+no SCIM push. **Why:** drops dual‑IdP + group‑sync complexity; GitHub OAuth
 isn't reachable air‑gapped. **Rejected:** dual‑IdP (Keycloak + GitHub).
 
-## D2 — In‑cluster Git (Gitea or GitLab via operator) ✅
-**Picked:** SCM runs **in the cluster**. **Why:** the prior EC2‑Omnibus GitLab caused
+## D2 — In‑cluster Git: Gitea ✅
+**Picked:** SCM runs **in the cluster**, as **Gitea** (Helm; lightest option). **Why:** the prior EC2‑Omnibus GitLab caused
 a cloud‑init systemd deadlock, a private‑subnet + edge‑Route cutover, and an SSM‑PAT
-dance — none of it air‑gap‑able or repeatable. **Rejected:** GitLab‑on‑EC2.
-**Open:** Gitea (lightest) vs GitLab‑operator (closer to prior narrative) — decide in P2.
+dance — none of it air‑gap‑able or repeatable. **Rejected:** GitLab‑on‑EC2;
+GitLab‑operator (heavier; Gitea chosen in P2).
 
 ## D3 — Model serving via OpenShift AI (RHOAI) ✅
 **Picked:** RHOAI **KServe + vLLM ServingRuntime** (`ServingRuntime` + `InferenceService`).
@@ -26,7 +28,8 @@ Deployments and their drift. **Rejected:** hand‑rolled vLLM Deployments/Machin
 **Picked:** the model/GPU we actually validated — `Qwen/Qwen2.5‑7B‑Instruct`, 16K ctx,
 TP‑1, `--tool-call-parser hermes`, on a single A10G. **Why:** cost‑effective default;
 proven to tool‑call correctly. Llama‑3.3‑70B INT4 (TP‑2, L40S/`g6e`) is documented as
-a **scale‑up** (kept at 0 for cost). **Rejected:** Llama‑70B/L40S as the default.
+a **scale‑up** (kept at 0 for cost; documented only — no manifest in the repo yet).
+**Rejected:** Llama‑70B/L40S as the default.
 
 ## D5 — No secret VALUES in the repo (it is public) — ever ✅
 **Picked:** the repo contains only secret *references + generator specs*. Values come
@@ -50,18 +53,25 @@ Vault) keep it dependency‑free. Enforcement uses **GitHub‑native secret scan
 no CI secret‑scanner action is maintained in‑repo.
 
 ## D6 — Coder Agents demoed in‑product ✅
-**Picked:** the headline flow is Coder Agents (Tasks/chat) in the Coder UI. The
-GitLab‑issue→workspace **bridge** is optional / a later phase. **Why:** removes a
+**Picked:** the headline flow is Coder Agents chats in the Coder UI (models via the
+AI Gateway, configured by `task ai-provider`). The
+issue→workspace **bridge** is optional / a later phase. **Why:** removes a
 bespoke Go service from the critical path.
 
 ## D7 — Two workspace templates ✅
-**Picked:** `workspace-basic` and `workspace-agent` (offline AI CLIs baked into the
-image). An **egress‑controlled** flavor is folded into air‑gap mode rather than a
-separate template. **Rejected:** the prior 5 templates + firewall/no‑firewall split.
+**Picked:** `workspace-basic` and `workspace-agent` (Claude Code + Codex, installed
+by pinned Coder registry modules at workspace start and routed through the AI
+Gateway; the image itself carries only code‑server + toolchain). An
+**egress‑controlled** flavor is folded into air‑gap mode rather than a
+separate template — note that air‑gap mode therefore needs the CLIs baked into
+the image or mirrored (see [`air-gap.md`](air-gap.md#known-gaps)).
+**Rejected:** the prior 5 templates + firewall/no‑firewall split.
 
 ## D8 — Minimal observability ✅
 **Picked:** OpenShift user‑workload monitoring + 1–2 dashboards. **Rejected:** the
 `coder-observability` Helm umbrella (optional add‑on later).
+**Status:** not implemented yet — `manifests/observability/` is a placeholder
+(the `observability` Argo app syncs an empty set).
 
 ## D9 — Five docs max ✅
 **Picked:** `README.md` + `docs/{architecture,deploy,air-gap,decisions}.md`. Anything

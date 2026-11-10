@@ -22,10 +22,23 @@ terraform output route53_name_servers           # add these NS to the parent zon
 
 # Phase 2 — after `openshift-install`: capture the cluster OIDC and create IRSA.
 oc get authentication cluster -o jsonpath='{.spec.serviceAccountIssuer}'
-#  -> set oidc_provider_arn + oidc_issuer_host (and create_route53_zone=false) in tfvars
+#  -> set oidc_provider_arn + oidc_issuer_host (+ enable_bedrock=true for
+#     connected-mode Bedrock) in tfvars. KEEP create_route53_zone=true.
 terraform apply
 terraform output cert_manager_role_arn           # -> export CERT_MANAGER_ROLE_ARN for `task deploy`
+terraform output coder_bedrock_role_arn          # -> export CODER_BEDROCK_ROLE_ARN (task coder-irsa / ai-provider)
 ```
+
+> **Do not flip `create_route53_zone` to `false` on a zone this config
+> created.** That removes `aws_route53_zone.base` from config and the next
+> `apply` **destroys the zone** (and every record the cluster installer and
+> cert-manager wrote into it). `false` is only for a zone that was created
+> *outside* this Terraform state.
+
+## Teardown
+`terraform destroy` deletes the zone and IAM roles. The NS delegation record in
+the **parent** zone (e.g. `coderdemo.io`, often a different AWS account) is not
+managed here — delete it manually.
 
 No secrets are stored here (D5). The cluster must be installed in **STS/OIDC
 mode** (Manual credentials mode + `ccoctl`) for IRSA to work — see `install/`.

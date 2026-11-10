@@ -12,16 +12,18 @@ on OpenShift + OpenShift AI (RHOAI)**. The same manifests run in two modes:
 | Model serving | RHOAI (in‑cluster) **+** optional AWS Bedrock | **RHOAI only** (in‑cluster vLLM) |
 | Identity | Keycloak (RHBK) | Keycloak (RHBK), in‑cluster |
 | SCM | in‑cluster Git (**Gitea**) | in‑cluster Git (**Gitea**) |
-| Workspace egress | allowed | **default‑deny** (NetworkPolicy / Agent Firewall) |
+| Workspace egress | allowed | **default‑deny** (NetworkPolicy) |
 | Secrets | generated in‑cluster / provided at deploy — **never in git** | same |
 
-> **Status: deploy automation complete (Phases 0–7).** The full connected +
-> air‑gap reference architecture (operators, Keycloak, Gitea, Coder, RHOAI model
-> serving, workspace templates) plus **P7 deploy automation** — Terraform
-> (Route53 + IRSA), `install/` (install‑config + GPU MachineSet), and a real
-> `task deploy` (bootstrap→apps→IRSA→GPU→templates→air‑gap) — are in `main`.
-> Remaining: fresh‑cluster acceptance run + docs/diagrams (P8). Locked
-> decisions: [`docs/decisions.md`](docs/decisions.md).
+> **Status: connected mode accepted on a fresh AWS account (2026‑11‑10).**
+> Terraform (Route53 + IRSA) → `openshift-install` (OCP 4.21) → `task deploy`
+> → `task ai-provider` produced all 11 Argo apps Synced/Healthy, Keycloak SSO into
+> Coder and Gitea, both templates building workspaces, and Claude Code / Codex /
+> Coder Agents working through the AI Gateway (in‑cluster vLLM + Bedrock).
+> **Not yet validated live:** `MODE=airgap` (see gaps in
+> [`docs/air-gap.md`](docs/air-gap.md)), `task reset`, observability (D8 —
+> placeholder only), diagrams. Locked decisions:
+> [`docs/decisions.md`](docs/decisions.md).
 
 ## Design in one screen
 - **Single IdP** — Keycloak/RHBK only. (D1)
@@ -32,18 +34,20 @@ on OpenShift + OpenShift AI (RHOAI)**. The same manifests run in two modes:
 - **No secrets in this public repo — ever.** Values are generated in‑cluster (ESO
   `Password` generators + operator‑managed) or provided at deploy time; the repo
   holds only references/specs. (D5 — see [`docs/decisions.md`](docs/decisions.md))
-- **Coder Agents demoed in‑product**; two workspace templates with offline AI CLIs;
-  minimal observability. (D6–D8)
+- **Coder Agents demoed in‑product**; two workspace templates (the agent template
+  installs Claude Code + Codex via Coder registry modules at workspace start,
+  routed through the AI Gateway); minimal observability (planned). (D6–D8)
 
-## Quickstart (once built)
+## Quickstart
 This repo uses [go-task](https://taskfile.dev) (`task`) as its task runner — install it via https://taskfile.dev/installation/.
 ```bash
 task help          # list targets
 task deploy        # one-command in-cluster deploy (connected mode)
+task ai-provider   # AI Gateway providers + Coder Agents models
 task deploy MODE=airgap
 task creds         # print demo logins (personas + Keycloak admin), read live from the cluster
-task reset         # return to a clean demo state
-task destroy
+task reset         # re-seed the Keycloak realm (see deploy.md for what it does/doesn't do)
+task destroy       # prints the guarded teardown steps
 ```
 `task creds` works as soon as the identity layer is deployed; see
 [`docs/deploy.md`](docs/deploy.md#credentials-retrieving-the-generated-demo-logins).

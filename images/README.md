@@ -16,6 +16,9 @@ registry for a self-contained / air-gapped pull path.
 NS=coder-workspaces ./images/mirror-to-internal-registry.sh
 ```
 
-Templates pull `…/coder-workspaces/ubi9-node-workspace:latest` (the
-`image_registry` default). No secrets in these images; nothing is fetched from
-the public internet at workspace start (code-server is baked).
+Templates pull `<image_registry>/ubi9-node-workspace:latest`. `task push-templates`
+sets the registry: GHCR in connected mode, this internal registry in air-gap.
+The images hold no secrets. code-server is baked in, so `workspace-basic` fetches
+nothing at start. `workspace-agent` is different: its registry modules
+**download Claude Code and Codex at every workspace start**, because they aren't
+in the image (see [`docs/air-gap.md`](../docs/air-gap.md#known-gaps)).

@@ -11,7 +11,8 @@ aws_profile = ""                       # AWS CLI/SSO profile for the target acco
 base_domain  = "rh-pde.coderdemo.io"   # CONFIRM before provisioning
 cluster_name = "cluster"               # -> apps.cluster.rh-pde.coderdemo.io
 
-# Set false if the zone already exists / is delegated (read as a data source).
+# Set false ONLY if the zone was created outside this Terraform state (it is then
+# read as a data source). Never flip true->false after apply: that destroys the zone.
 create_route53_zone = true
 
 # --- IRSA (fill in AFTER openshift-install, then re-apply) ---

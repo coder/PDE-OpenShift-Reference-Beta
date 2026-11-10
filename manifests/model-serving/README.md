@@ -20,11 +20,13 @@ is headless, so use the pod port). Bedrock (Anthropic, for Claude Code) is an
 optional connected-mode provider configured by the same task — see
 [`ai-providers/`](../../ai-providers/).
 
-**Infra assumption:** a g5.2xlarge (A10G) GPU MachineSet exists (terraform);
-NFD + NVIDIA GPU operator (bootstrap operators) label/taint the GPU node.
+**Infra assumption:** a g5.2xlarge (A10G) GPU MachineSet exists (`task gpu-node`,
+which `task deploy` runs). NFD and the NVIDIA GPU operator (bootstrap operators
+plus the `gpu` app) label and taint the GPU node.
 
 **Version note:** the vLLM image is pinned by digest to the one RHOAI 3.5.2
 ships (`vllm-cuda-runtime-template`, vLLM v0.24.0); re-pin on RHOAI upgrades
 (see the comment in `serving-runtime.yaml`).
 
-Scale-up (documented, scaled to 0): Llama-3.3-70B on L40S with tensor parallelism.
+Scale-up (documented only, with no manifest in the repo yet): Llama-3.3-70B INT4
+on L40S (`g6e`) with TP-2.

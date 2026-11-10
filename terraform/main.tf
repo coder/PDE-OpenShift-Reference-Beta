@@ -8,7 +8,9 @@
 # IRSA roles trust the INSTALLED cluster's OIDC provider, so apply in two phases:
 #   phase 1 (before install): terraform apply -target=aws_route53_zone.base  (if creating the zone)
 #   phase 2 (after install, with oidc_* set): terraform apply
-# Set create_route53_zone=false + oidc_* vars once the cluster exists.
+# Set the oidc_* vars once the cluster exists. Keep create_route53_zone=true for a
+# zone this config created: flipping it to false DESTROYS the zone on next apply.
+# (false is only for a pre-existing zone created outside this state.)
 
 # ---- 1. DNS ------------------------------------------------------------------
 resource "aws_route53_zone" "base" {
