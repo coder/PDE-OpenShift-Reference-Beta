@@ -8,12 +8,13 @@
 # Usage:
 #   task                              - list tasks
 #   task preflight                    - check tooling + cluster login
-#   task deploy                       - bootstrap -> apps -> IRSA -> GPU -> templates (connected)
+#   task deploy                       - bootstrap -> apps -> IRSA -> GPU -> templates -> AI providers (connected)
 #   task deploy MODE=airgap           - + air-gap overlay (run `task mirror` first)
 #   task bootstrap                    - operators + Argo root app-of-apps
 #   task gpu-node                     - derive a g5.2xlarge GPU MachineSet
 #   task push-templates               - coder templates push (needs `coder login`)
-#   task ai-provider                  - register in-cluster vLLM with the AI Gateway (needs `coder login` + license)
+#   task ai-provider                  - AI Gateway providers (vLLM [+ Bedrock]) + Coder Agents models (needs `coder login` + license)
+#   task coder-irsa                   - annotate the coder SA with CODER_BEDROCK_ROLE_ARN + restart Coder
 #   task creds [KEYCLOAK_NS=<ns>]      - print demo logins (reads live Secrets)
 #   task status | reset | mirror | destroy
 #
@@ -37,6 +38,11 @@ vars:
   # connected pulls the public GHCR build directly; airgap pulls the copy that
   # `task mirror` puts in the internal registry.
   WORKSPACE_IMAGE_REGISTRY: '{{.WORKSPACE_IMAGE_REGISTRY | default (eq .MODE "airgap" | ternary "image-registry.openshift-image-registry.svc:5000/coder-workspaces" "ghcr.io/coder/pde-openshift-reference")}}'
+  # Claude Code model (workspace-agent). Passed explicitly because
+  # `coder templates push` carries over the previous version's variable values,
+  # so a changed template default would never reach an existing deployment.
+  # Must be one of the Bedrock provider's models (ai-providers/configure.py).
+  ANTHROPIC_MODEL: '{{.ANTHROPIC_MODEL | default "global.anthropic.claude-haiku-4-5-20251001-v1:0"}}'
 
 tasks:
 
@@ -75,6 +81,7 @@ tasks:
       - task: irsa
       - task: gpu-node
       - task: wait-apps
+      - task: coder-irsa
       - task: push-templates
       - task: ai-provider
       - task: '{{if eq .MODE "airgap"}}airgap-enable{{else}}airgap-disable{{end}}'
@@ -109,7 +116,7 @@ tasks:
         echo "[bootstrap] Argo is reconciling all apps (track: task status)."
 
   irsa:
-    desc: Annotate the cert-manager (+ optional Coder) ServiceAccount with its IRSA role
+    desc: Annotate the cert-manager ServiceAccount with its IRSA role
     silent: true
     cmds:
       - |
@@ -126,11 +133,28 @@ tasks:
           oc delete pod -n cert-manager -l app.kubernetes.io/name=cert-manager --ignore-not-found
           echo "[irsa] cert-manager SA annotated."
         fi
-        if [ -n "${CODER_BEDROCK_ROLE_ARN:-}" ]; then
-          oc get sa coder -n {{.CODER_NS}} >/dev/null 2>&1 \
-            && oc annotate sa coder -n {{.CODER_NS}} eks.amazonaws.com/role-arn="$CODER_BEDROCK_ROLE_ARN" --overwrite \
-            && echo "[irsa] coder SA annotated for Bedrock." || echo "[irsa] coder SA not present yet; re-run after Coder syncs."
+
+  coder-irsa:
+    desc: Annotate the coder SA with the Bedrock IRSA role (CODER_BEDROCK_ROLE_ARN) + restart Coder
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+        command -v oc >/dev/null || { echo "MISSING: oc"; exit 1; }
+        if [ -z "${CODER_BEDROCK_ROLE_ARN:-}" ]; then
+          echo "[coder-irsa] CODER_BEDROCK_ROLE_ARN unset -> skipping (no Bedrock; RHOAI-only AI)."; exit 0
         fi
+        echo "[coder-irsa] waiting for the coder ServiceAccount..."
+        for i in $(seq 1 60); do oc get sa coder -n {{.CODER_NS}} >/dev/null 2>&1 && break; sleep 10; done
+        cur=$(oc get sa coder -n {{.CODER_NS}} -o jsonpath='{.metadata.annotations.eks\.amazonaws\.com/role-arn}')
+        if [ "$cur" = "$CODER_BEDROCK_ROLE_ARN" ]; then
+          echo "[coder-irsa] coder SA already annotated."; exit 0
+        fi
+        oc annotate sa coder -n {{.CODER_NS}} eks.amazonaws.com/role-arn="$CODER_BEDROCK_ROLE_ARN" --overwrite
+        # New pods get the web-identity env from the pod-identity webhook.
+        oc rollout restart deploy/coder -n {{.CODER_NS}}
+        oc rollout status deploy/coder -n {{.CODER_NS}} --timeout=10m
+        echo "[coder-irsa] coder SA annotated for Bedrock; Coder restarted."
 
   gpu-node:
     desc: Ensure a g5.2xlarge GPU MachineSet (derived from a worker MachineSet)
@@ -193,11 +217,13 @@ tasks:
         fi
         for t in workspace-basic workspace-agent; do
           echo "[templates] pushing $t (image_registry={{.WORKSPACE_IMAGE_REGISTRY}}) ..."
-          coder templates push "$t" -d "templates/$t" --yes --variable image_registry="{{.WORKSPACE_IMAGE_REGISTRY}}"
+          extra=""
+          [ "$t" = workspace-agent ] && extra="--variable anthropic_model={{.ANTHROPIC_MODEL}}"
+          coder templates push "$t" -d "templates/$t" --yes --variable image_registry="{{.WORKSPACE_IMAGE_REGISTRY}}" $extra
         done
 
   ai-provider:
-    desc: Register the in-cluster vLLM as AI Gateway provider `openai` (needs `coder login` + license)
+    desc: Configure AI Gateway providers (vLLM; + Bedrock if Coder has its IRSA role) and Coder Agents models
     silent: true
     vars:
       # Headless predictor Service -> address the vLLM pod port directly.
@@ -205,28 +231,17 @@ tasks:
     cmds:
       - |
         set -euo pipefail
-        if ! command -v coder >/dev/null || ! TOKEN=$(coder login token 2>/dev/null); then
+        if ! command -v coder >/dev/null || ! AIP_CODER_TOKEN=$(coder login token 2>/dev/null); then
           echo "[ai-provider] coder CLI not logged in -> skipping. Then: coder login https://coder.apps.cluster.<domain> && task ai-provider"; exit 0
         fi
-        URL=$(coder whoami -o json | sed -n 's/.*"url": *"\([^"]*\)".*/\1/p' | head -1)
-        API="$URL/api/v2/ai/providers"
-        # Coder 2.39 manages providers in the DB only (env vars are ignored).
-        # vLLM runs without auth in-cluster; the key is a non-secret placeholder.
-        OUT=$(mktemp); trap 'rm -f "$OUT"' EXIT
-        api() { printf 'Coder-Session-Token: %s\n' "$TOKEN" | curl -sS -o "$OUT" -w '%{http_code}' -H @- -H 'Content-Type: application/json' "$@"; }
-        code=$(api "$API/openai")
-        if [ "$code" = 200 ]; then
-          echo "[ai-provider] updating provider openai -> {{.AI_PROVIDER_BASE_URL}}"
-          code=$(api -X PATCH "$API/openai" -d '{"enabled":true,"base_url":"{{.AI_PROVIDER_BASE_URL}}"}')
-        else
-          echo "[ai-provider] creating provider openai -> {{.AI_PROVIDER_BASE_URL}}"
-          code=$(api -X POST "$API" -d '{"type":"openai","name":"openai","display_name":"In-cluster vLLM (Qwen2.5-7B)","enabled":true,"base_url":"{{.AI_PROVIDER_BASE_URL}}","api_keys":["unused-local-vllm"]}')
-        fi
-        case "$code" in
-          200|201) echo "[ai-provider] ok. Workspaces use $URL/api/v2/ai-gateway/openai/v1" ;;
-          *) echo "[ai-provider] WARN: failed (HTTP $code): $(cat "$OUT")"
-             echo "  AI Gateway needs an active license: coder licenses add -f <license.jwt> && task ai-provider" ;;
-        esac
+        export AIP_CODER_TOKEN
+        export AIP_CODER_URL=$(coder whoami -o json | sed -n 's/.*"url": *"\([^"]*\)".*/\1/p' | head -1)
+        export VLLM_BASE_URL="{{.AI_PROVIDER_BASE_URL}}"
+        # Bedrock only when the coder SA carries an IRSA role (task coder-irsa).
+        role=$(oc get sa coder -n {{.CODER_NS}} -o jsonpath='{.metadata.annotations.eks\.amazonaws\.com/role-arn}' 2>/dev/null || true)
+        export BEDROCK_ENABLE=$([ -n "${CODER_BEDROCK_ROLE_ARN:-$role}" ] && echo 1 || echo 0)
+        python3 ai-providers/configure.py \
+          || echo "[ai-provider] WARN: not configured; fix the error above, then re-run: task ai-provider"
 
   airgap-enable:
     desc: Apply the air-gap overlay (egress-deny + registry redirect + oci model)

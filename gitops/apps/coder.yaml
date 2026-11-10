@@ -149,8 +149,9 @@ spec:
             # `openai` -> the RawDeployment predictor (headless Service, so the
             # pod port :8080 is used directly). Workspaces reach it at
             # /api/v2/ai-gateway/openai/v1. Requires an active license.
-            # Bedrock is intentionally NOT wired here (optional connected-mode
-            # add-on + Coder SA IRSA annotation — a later connected toggle).
+            # Bedrock (Claude Code) is an optional connected-mode provider:
+            # `task coder-irsa` annotates the coder SA with its IRSA role and
+            # `task ai-provider` registers it (no static keys).
             - name: CODER_AI_GATEWAY_ENABLED
               value: "true"
             - name: CODER_AI_GATEWAY_STRUCTURED_LOGGING

@@ -16,8 +16,9 @@ The model is OpenAI-compatible (chat completions + Responses API); **Coder's AI
 Gateway** routes Agents traffic to the InferenceService predictor through the
 `openai` provider that `task ai-provider` registers via the Coder API
 (`http://qwen25-7b-predictor.rhoai-serving.svc:8080/v1` — the predictor Service
-is headless, so use the pod port). Bedrock is an optional connected-mode add-on
-(not wired in P4).
+is headless, so use the pod port). Bedrock (Anthropic, for Claude Code) is an
+optional connected-mode provider configured by the same task — see
+[`ai-providers/`](../../ai-providers/).
 
 **Infra assumption:** a g5.2xlarge (A10G) GPU MachineSet exists (terraform);
 NFD + NVIDIA GPU operator (bootstrap operators) label/taint the GPU node.
