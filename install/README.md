@@ -13,7 +13,7 @@ this repo; `task deploy` takes over once the cluster (and a GPU node) exist.
 1. **Quotas/DNS:** request G-instance vCPU quota; create + delegate the Route53 zone (`terraform apply -target=aws_route53_zone.base`).
 2. **Install (STS):** `openshift-install create manifests` → `ccoctl aws create-all` → `openshift-install create cluster`.
 3. **IRSA:** capture the cluster OIDC and `terraform apply` (roles) — see `terraform/`.
-4. **GPU node:** `task gpu-node` (or apply the example MachineSet); wait for the NVIDIA operator to label it.
+4. **GPU node (optional here):** `task gpu-node` (or apply the example MachineSet). `task deploy` also runs it. The `nvidia.com/gpu.present` label only appears after `task deploy` installs NFD and the NVIDIA operator, so don't wait for it.
 5. **Deploy:** `task deploy` (connected) or `task deploy MODE=airgap` (after `task mirror`).
 
 See [`docs/deploy.md`](../docs/deploy.md) for the full runbook incl. prerequisites.

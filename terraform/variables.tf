@@ -28,7 +28,7 @@ variable "cluster_name" {
 
 variable "create_route53_zone" {
   type        = bool
-  description = "Create the Route53 public hosted zone for base_domain. If the zone already exists (delegated), set false and the config reads it as a data source."
+  description = "Create the Route53 public hosted zone for base_domain. Set false ONLY for a zone created outside this state (read as a data source); flipping true->false after apply destroys the zone."
   default     = true
 }
 

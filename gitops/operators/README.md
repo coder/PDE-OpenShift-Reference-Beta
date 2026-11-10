@@ -9,6 +9,7 @@ No secret values here (D5). Channels pinned to the live catalog (verified 2026-1
 | 10 | cert-manager | redhat-operators | stable-v1 |
 | 20 | CloudNativePG | certified-operators | stable-v1 |
 | 30 | External Secrets Operator | redhat-operators | stable-v1 |
+| 35 | Red Hat build of Keycloak (rhbk-operator) | redhat-operators | stable-v26 |
 | 40 | OpenShift AI (RHOAI, rhods-operator) | redhat-operators | stable-3.x |
 | 50 | Node Feature Discovery | redhat-operators | stable |
 | 60 | NVIDIA GPU Operator | certified-operators | v26.7 |

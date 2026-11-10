@@ -21,5 +21,7 @@ Air-gap can't use `hf://` at serve time. `task mirror` builds/pushes an OCI
 InferenceService `storageUri` to `oci://…` (the `model-serving` Argo app
 `ignoreDifferences` that field so it isn't reverted).
 
-**P7:** tune the egress allow-list and confirm the IDMS mirror host / digests
-(oc-mirror generates the authoritative IDMS) on the fresh cluster.
+**Not yet validated live.** Before using this overlay, tune the egress
+allow‑list and replace the IDMS with the one oc‑mirror generates for your mirror
+host. See the known gaps in [`docs/air-gap.md`](../../docs/air-gap.md#known-gaps)
+(the AI CLIs are fetched at workspace start, Bedrock, license/telemetry).

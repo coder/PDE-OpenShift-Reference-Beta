@@ -269,7 +269,7 @@ tasks:
         echo "[airgap] overlay removed (connected posture). Model storageUri reverts to hf:// on the next model-serving sync."
 
   reset:
-    desc: Return to a clean demo state (re-seed realm, drop demo workspaces), keep infra
+    desc: Re-seed the Keycloak demo realm (re-run import job); prints cred-rotation/workspace cleanup hints, keeps infra
     silent: true
     cmds:
       - |

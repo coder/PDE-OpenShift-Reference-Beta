@@ -16,5 +16,10 @@ Three Secrets back Coder, all generated/shared in-cluster (never in git):
 `coder-db-app` (CNPG), `coder-oidc-client-secret` (ESO), and `coder-gitea-oauth`
 (written by the SCM phase's registration Job for Coder's external Git auth).
 
-Login is Keycloak-only (D1). Group→role sync and AI Gateway are Premium/Phase-4
-items; a Coder license is supplied at deploy time (never committed, D5).
+Login is Keycloak-only (D1), with OIDC group→role/group sync applied **at each
+login** (no SCIM, so a persona's groups appear after its first login). A Premium
+Coder license is supplied at deploy time (`coder licenses add`, never committed,
+D5). It requires telemetry, which the chart keeps on (`CODER_TELEMETRY_ENABLE=true`).
+AI Gateway providers (`openai` → vLLM, `bedrock` → IRSA) and the Coder Agents
+models are configured through the API by `task ai-provider` (Coder 2.39 ignores
+provider env vars). See [`ai-providers/`](../../ai-providers/).

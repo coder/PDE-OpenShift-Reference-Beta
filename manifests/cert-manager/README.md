@@ -15,8 +15,9 @@ Subscription is bootstrap-applied from `gitops/operators/10-cert-manager.yaml`.
 The RH cert-manager operator does **not** reconcile OpenShift `Route` objects, so
 per-route `cert-manager.io/*` annotations are no-ops. Instead we issue one
 wildcard cert and set it as the **router default** — every edge-terminated Route
-(keycloak, coder, gitea, grafana, argocd, and Coder workspace-app subdomains)
-then serves a valid cert automatically, no per-route wiring.
+(keycloak, coder, gitea, the GitOps console `openshift-gitops-server`, and
+Coder workspace-app subdomains) then serves a valid cert automatically, with no
+per-route wiring.
 
 > Note: some earlier Route manifests still carry legacy `cert-manager.io/*`
 > annotations; they are harmless (inert) and can be removed in a later tidy-up.
