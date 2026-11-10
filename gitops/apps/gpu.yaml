@@ -1,0 +1,34 @@
+# GPU enablement: NFD instance + NVIDIA ClusterPolicy (operators bootstrap-installed
+# by gitops/operators/50-node-feature-discovery.yaml + 60-nvidia-gpu.yaml).
+# Wave 1: before model-serving (wave 2), whose predictor needs nvidia.com/gpu.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gpu
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    # Server-side diff: the API server applies CRD defaults, so defaulted fields
+    # (e.g. ExternalSecret remoteRef.*) don't show as permanent OutOfSync.
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/coder/PDE-OpenShift-Reference-Beta.git
+    targetRevision: main
+    path: manifests/gpu
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nvidia-gpu-operator
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 8
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

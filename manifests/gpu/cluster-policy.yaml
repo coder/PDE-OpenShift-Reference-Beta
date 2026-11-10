@@ -1,0 +1,108 @@
+# NVIDIA GPU Operator ClusterPolicy — the operator's own default (alm-examples of
+# gpu-operator-certified v26.7.2), plus explicit daemonset tolerations for the
+# tainted GPU node. Without a ClusterPolicy the
+# operator installs nothing: no driver (built via the OpenShift Driver Toolkit),
+# no device plugin, no `nvidia.com/gpu.present` label or allocatable
+# `nvidia.com/gpu`, so the RHOAI predictor (manifests/model-serving) stays Pending.
+#
+# Sync-wave 1 (after nfd-instance at 0): the operator keys on NFD's
+# feature.node.kubernetes.io/pci-10de.present label.
+apiVersion: nvidia.com/v1
+kind: ClusterPolicy
+metadata:
+  name: gpu-cluster-policy
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  operator:
+    use_ocp_driver_toolkit: true
+  cdi:
+    enabled: true
+    nriPluginEnabled: false
+  sandboxWorkloads:
+    enabled: false
+    defaultWorkload: container
+    mode: kubevirt
+  driver:
+    enabled: true
+    useNvidiaDriverCRD: false
+    kernelModuleType: auto
+    upgradePolicy:
+      autoUpgrade: true
+      drain:
+        deleteEmptyDir: false
+        enable: false
+        force: false
+        timeoutSeconds: 300
+      maxParallelUpgrades: 1
+      maxUnavailable: 25%
+      podDeletion:
+        deleteEmptyDir: false
+        force: false
+        timeoutSeconds: 300
+      waitForCompletion:
+        timeoutSeconds: 0
+    repoConfig:
+      configMapName: ""
+    certConfig:
+      name: ""
+    licensingConfig:
+      nlsEnabled: true
+      secretName: ""
+    virtualTopology:
+      config: ""
+    kernelModuleConfig:
+      name: ""
+  dcgmExporter:
+    enabled: true
+    config:
+      name: ""
+    serviceMonitor:
+      enabled: true
+  dcgm:
+    enabled: true
+  daemonsets:
+    updateStrategy: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: "1"
+    # Explicit (added to the operator default): run on the tainted GPU node.
+    tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+  devicePlugin:
+    enabled: true
+    config:
+      name: ""
+      default: ""
+    mps:
+      root: /run/nvidia/mps
+  gfd:
+    enabled: true
+  migManager:
+    enabled: true
+  nodeStatusExporter:
+    enabled: true
+  mig:
+    strategy: single
+  toolkit:
+    enabled: true
+  validator:
+    plugin:
+      env: []
+  vgpuManager:
+    enabled: false
+  vgpuDeviceManager:
+    enabled: true
+  sandboxDevicePlugin:
+    enabled: true
+  kataSandboxDevicePlugin:
+    enabled: true
+  vfioManager:
+    enabled: true
+  ccManager:
+    enabled: true
+  gds:
+    enabled: false
+  gdrcopy:
+    enabled: false

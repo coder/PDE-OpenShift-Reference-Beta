@@ -1,0 +1,35 @@
+# Node Feature Discovery instance — labels nodes with hardware features. The
+# NVIDIA GPU Operator schedules its driver/device-plugin daemonsets onto nodes
+# NFD labels feature.node.kubernetes.io/pci-10de.present=true (NVIDIA PCI
+# vendor). Minimal form of the NFD operator's alm-examples default: PCI
+# discovery of network (0200), display (03) and processing-accelerator (12)
+# classes, labelled by vendor. Operator Subscription: gitops/operators/50-node-feature-discovery.yaml.
+apiVersion: nfd.openshift.io/v1
+kind: NodeFeatureDiscovery
+metadata:
+  name: nfd-instance
+  namespace: openshift-nfd
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  operand:
+    imagePullPolicy: IfNotPresent
+    servicePort: 12000
+    # The GPU MachineSet taints its node nvidia.com/gpu=true:NoSchedule; the
+    # worker must still run there to label it.
+    workerTolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+  workerConfig:
+    configData: |
+      core:
+        sleepInterval: 60s
+      sources:
+        pci:
+          deviceClassWhitelist:
+            - "0200"
+            - "03"
+            - "12"
+          deviceLabelFields:
+            - "vendor"

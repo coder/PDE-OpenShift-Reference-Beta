@@ -73,12 +73,14 @@ spec:
             # ── Auth: single IdP — Keycloak OIDC (D1) ──────────────────
             - name: CODER_DISABLE_PASSWORD_AUTH
               value: "true"
-            # Coder enables its built-in GitHub OAuth app (login + external
-            # auth, allow-everyone) on fresh deployments by default. D1/D2:
-            # Keycloak is the only IdP and Gitea the only Git provider.
+            # Coder enables its built-in GitHub OAuth login app (allow-everyone)
+            # on fresh deployments by default. D1: Keycloak is the only IdP.
+            # (The default GitHub *external auth* provider is already suppressed
+            # because CODER_EXTERNAL_AUTH_0 (Gitea) is set. Do NOT set
+            # CODER_EXTERNAL_AUTH_GITHUB_DEFAULT_PROVIDER_ENABLE: the
+            # CODER_EXTERNAL_AUTH_<n>_* env parser reads "GITHUB" as a provider
+            # index and the server exits with "parse number" (2.39.0).)
             - name: CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE
-              value: "false"
-            - name: CODER_EXTERNAL_AUTH_GITHUB_DEFAULT_PROVIDER_ENABLE
               value: "false"
             - name: CODER_OIDC_ISSUER_URL
               value: "https://keycloak.apps.cluster.rh-pde.coderdemo.io/realms/demo"
