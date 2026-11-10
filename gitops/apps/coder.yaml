@@ -27,6 +27,9 @@ metadata:
   namespace: openshift-gitops
   annotations:
     argocd.argoproj.io/sync-wave: "3"
+    # Server-side diff: the API server applies CRD defaults, so defaulted fields
+    # (e.g. ExternalSecret remoteRef.*) don't show as permanent OutOfSync.
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
 spec:
   project: default
   source:
@@ -70,6 +73,13 @@ spec:
             # ── Auth: single IdP — Keycloak OIDC (D1) ──────────────────
             - name: CODER_DISABLE_PASSWORD_AUTH
               value: "true"
+            # Coder enables its built-in GitHub OAuth app (login + external
+            # auth, allow-everyone) on fresh deployments by default. D1/D2:
+            # Keycloak is the only IdP and Gitea the only Git provider.
+            - name: CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE
+              value: "false"
+            - name: CODER_EXTERNAL_AUTH_GITHUB_DEFAULT_PROVIDER_ENABLE
+              value: "false"
             - name: CODER_OIDC_ISSUER_URL
               value: "https://keycloak.apps.cluster.rh-pde.coderdemo.io/realms/demo"
             - name: CODER_OIDC_CLIENT_ID
