@@ -57,6 +57,22 @@ task status                    # Argo apps + InferenceService + routes + GPU nod
 **wait-apps** (Argo Healthy+Synced) → **push-templates** (needs `coder login`) →
 air‑gap overlay toggle (`MODE`).
 
+### First Coder login (owner)
+Password auth is disabled, so the **first user must come from Keycloak**: the
+first OIDC sign‑in on an empty deployment becomes the Coder **owner**.
+1. `task creds`, then in a browser open
+   `https://coder.apps.cluster.<domain>/api/v2/users/oidc/callback` (starts the
+   Keycloak flow directly — an empty deployment redirects `/login` to `/setup`,
+   which only offers password/GitHub) and sign in as **`demoadm`** (the `admins`
+   group → owner once the license enables role sync; signing in first as
+   alice/bob would make a non‑admin the owner).
+2. Only then `coder login https://coder.apps.cluster.<domain>` (browser token flow),
+   `coder licenses add -f <license.jwt>`, and `task push-templates`.
+
+If `coder login` asks *"Would you like to create the first user?"*, answer
+**no** — it creates a *password* owner that can never sign in (password auth is
+off) and stops the first OIDC user from becoming owner.
+
 ## Credentials
 No secret is committed. Persona passwords are generated in‑cluster (ESO) and live
 only in `Secret/keycloak-realm-secrets`:
