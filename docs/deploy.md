@@ -34,6 +34,8 @@ openshift-install create cluster --dir .
 oc get authentication cluster -o jsonpath='{.spec.serviceAccountIssuer}'   # -> oidc_* in terraform.tfvars
 cd terraform && terraform apply                                            # creates cert-manager (+ optional Bedrock) roles
 export CERT_MANAGER_ROLE_ARN=$(terraform output -raw cert_manager_role_arn)
+# Connected mode with Claude Code / Bedrock (needs enable_bedrock = true):
+export CODER_BEDROCK_ROLE_ARN=$(terraform output -raw coder_bedrock_role_arn)
 ```
 
 ## 3. GPU node
@@ -54,8 +56,11 @@ task status                    # Argo apps + InferenceService + routes + GPU nod
 ```
 `task deploy` runs: **bootstrap** (operators → Argo root app‑of‑apps) →
 **irsa** (annotate cert‑manager SA from `CERT_MANAGER_ROLE_ARN`) → **gpu-node** →
-**wait-apps** (Argo Healthy+Synced) → **push-templates** (needs `coder login`) →
-air‑gap overlay toggle (`MODE`).
+**wait-apps** (Argo Healthy+Synced) → **coder-irsa** (annotate the coder SA from
+`CODER_BEDROCK_ROLE_ARN` + restart Coder; skipped when unset) →
+**push-templates** (needs `coder login`) → **ai-provider** (AI Gateway providers
++ Coder Agents models, see [`ai-providers/`](../ai-providers/); needs
+`coder login` + license) → air‑gap overlay toggle (`MODE`).
 
 ### First Coder login (owner)
 Password auth is disabled, so the **first user must come from Keycloak**: the
@@ -67,7 +72,13 @@ first OIDC sign‑in on an empty deployment becomes the Coder **owner**.
    group → owner once the license enables role sync; signing in first as
    alice/bob would make a non‑admin the owner).
 2. Only then `coder login https://coder.apps.cluster.<domain>` (browser token flow),
-   `coder licenses add -f <license.jwt>`, and `task push-templates`.
+   `coder licenses add -f <license.jwt>`, `task push-templates`, and
+   `task ai-provider`. Coder 2.39 configures AI Gateway providers and Coder
+   Agents models only via the API/UI (provider env vars are ignored), and AI
+   Gateway is Premium — the license must show as active (`coder licenses list`;
+   telemetry stays enabled, since standard licenses are rejected without it).
+   Bedrock (Claude Code; Opus/Haiku Agents models) is configured only when
+   Coder has its IRSA role (`CODER_BEDROCK_ROLE_ARN` → `task coder-irsa`).
 
 If `coder login` asks *"Would you like to create the first user?"*, answer
 **no** — it creates a *password* owner that can never sign in (password auth is

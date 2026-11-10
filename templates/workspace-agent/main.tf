@@ -1,22 +1,17 @@
 # =============================================================================
 # workspace-agent — AI-enabled Coder workspace on OpenShift (ADR D6/D7)
 # =============================================================================
-# workspace-basic + offline AI CLIs (Claude Code, Codex) routed through the
-# Coder AI Gateway. In the sovereign (RHOAI-only) default, the gateway's OpenAI
-# provider is wired to the in-cluster vLLM Qwen2.5-7B model (Phase 4), so Codex
-# talks to the local model. Claude Code's Anthropic path needs the gateway's
-# Bedrock provider (connected mode) — see the NOTE on local.ai_gw_anthropic.
-#
-# NOTE (P7): the AI Gateway route provider names (openai vs openai-compat,
-# anthropic vs bedrock) and vLLM's OpenAI API surface (Chat Completions vs the
-# Responses API Codex uses) are confirmed at the fresh-cluster run; tune the
-# locals/model vars below to match. The CLIs are pre-baked in the image; the
-# modules only configure them.
+# workspace-basic + AI CLIs (Claude Code, Codex) routed through the Coder AI
+# Gateway with the owner's session token (providers: `task ai-provider`):
+#     Codex       -> provider `openai`  (in-cluster RHOAI vLLM, Qwen2.5-7B)
+#     Claude Code -> provider `bedrock` (AWS Bedrock; connected mode only)
 # =============================================================================
 
 terraform {
   required_providers {
-    coder      = { source = "coder/coder" }
+    # Pinned below 2.20: 2.20.0 deprecates data.coder_task, which the
+    # claude-code/codex modules still declare via coder-utils (warning only).
+    coder      = { source = "coder/coder", version = "~> 2.19.0" }
     kubernetes = { source = "hashicorp/kubernetes" }
   }
 }
@@ -49,13 +44,23 @@ variable "openai_model" {
   default     = "qwen2.5-7b-instruct"
 }
 
-# Model Claude Code requests via the AI Gateway Bedrock provider. Only reachable
-# in connected mode (Bedrock wired on the Coder server, P4 note). Harmless if
-# unused in sovereign mode.
+# Model Claude Code requests via the AI Gateway Bedrock provider (connected
+# mode). Must be one of the provider's models (ai-providers/configure.py):
+# the gateway silently rewrites unknown model ids to the provider default.
 variable "anthropic_model" {
   type        = string
   description = "Model id Claude Code requests via the AI Gateway Bedrock provider (connected mode)."
-  default     = "global.anthropic.claude-sonnet-4-5-20250929-v1:0"
+  default     = "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+}
+
+# Models offered in Claude Code's /model picker (the Bedrock provider's models).
+variable "anthropic_available_models" {
+  type        = list(string)
+  description = "Model ids Claude Code may select (locked picker)."
+  default = [
+    "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+    "global.anthropic.claude-opus-4-5-20251101-v1:0",
+  ]
 }
 
 provider "kubernetes" {
@@ -153,10 +158,24 @@ locals {
   ai_gw_openai    = "${data.coder_workspace.me.access_url}/api/v2/ai-gateway/openai/v1"
   ai_gw_anthropic = "${data.coder_workspace.me.access_url}/api/v2/ai-gateway/bedrock"
 
+  claude_settings = jsonencode({
+    permissions                       = { defaultMode = "bypassPermissions" }
+    skipDangerousModePermissionPrompt = true
+    hasCompletedOnboarding            = true
+    hasAcknowledgedCostThreshold      = true
+    availableModels                   = var.anthropic_available_models
+  })
+
+  # Codex config.toml, written verbatim by the codex module.
+  #   * wire_api = "responses": Codex >= 0.167 dropped "chat".
+  #   * web_search = "disabled": the hosted web_search tool isn't served by
+  #     vLLM (or Bedrock's OpenAI endpoint).
+  #   * sandbox_mode = "danger-full-access": the pod is the sandbox (no bwrap).
   codex_base_config = <<-TOML
     model_provider = "openai-compat"
     model = "${var.openai_model}"
     model_reasoning_effort = "medium"
+    web_search = "disabled"
     sandbox_mode = "danger-full-access"
     approval_policy = "never"
 
@@ -167,7 +186,7 @@ locals {
     name = "Coder AI Gateway (in-cluster vLLM)"
     base_url = "${local.ai_gw_openai}"
     env_key = "OPENAI_API_KEY"
-    wire_api = "chat"
+    wire_api = "responses"
 
     [projects."/home/coder"]
     trust_level = "trusted"
@@ -179,17 +198,26 @@ resource "coder_agent" "main" {
   arch = data.coder_provisioner.me.arch
   os   = "linux"
 
+  # No `set -e`: a non-critical step must not fail the whole agent startup.
   startup_script = <<-EOT
     #!/bin/bash
-    set -e
     touch ~/.bashrc
     npm config set prefix "$HOME/.local" >/dev/null 2>&1 || true
-    grep -qF "$HOME/.local/bin" ~/.profile 2>/dev/null || echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.profile
-    # Claude Code: bypass permission prompts (demo-grade).
+
+    # PATH for ~/.local/bin + the npm global bin (where the modules install the CLIs)
+    NPM_BIN="$(npm config get prefix 2>/dev/null)/bin"
+    for P in "$HOME/.local/bin" "$NPM_BIN"; do
+      grep -qF "$P" ~/.profile 2>/dev/null || echo "export PATH=\"$P:\$PATH\"" >> ~/.profile
+    done
+
+    # Claude Code user settings: bypass permission prompts (demo-grade) and LOCK
+    # the model picker to the gateway's Bedrock models. The claude-code module
+    # writes its install state to ~/.claude.json (a different file).
     mkdir -p ~/.claude
     cat > ~/.claude/settings.json <<'CLAUDESETTINGS'
-    { "permissions": { "defaultMode": "bypassPermissions" }, "hasCompletedOnboarding": true }
+    ${local.claude_settings}
     CLAUDESETTINGS
+
     echo "=== Workspace Ready ==="
   EOT
 
@@ -202,6 +230,10 @@ resource "coder_agent" "main" {
     GIT_AUTHOR_EMAIL    = data.coder_workspace_owner.me.email
     GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
     GIT_COMMITTER_EMAIL = data.coder_workspace_owner.me.email
+
+    # No docker socket in the pod: opt out of devcontainer detection, which
+    # otherwise stalls dashboard polls on `docker ps`.
+    CODER_AGENT_DEVCONTAINERS_ENABLE = "false"
   }
 
   metadata {
@@ -217,6 +249,21 @@ resource "coder_agent" "main" {
     script       = "coder stat mem"
     interval     = 10
     timeout      = 1
+  }
+  metadata {
+    display_name = "Disk Usage"
+    key          = "disk_usage"
+    script       = "coder stat disk --path /home/coder"
+    interval     = 60
+    timeout      = 1
+  }
+
+  display_apps {
+    vscode                 = true
+    vscode_insiders        = false
+    web_terminal           = true
+    ssh_helper             = false
+    port_forwarding_helper = false
   }
 }
 
@@ -252,8 +299,17 @@ module "code-server" {
   subdomain      = true
   install_prefix = "/usr/lib/code-server"
   offline        = true
-  settings         = { "chat.disableAIFeatures" = true }
-  machine_settings = { "chat.disableAIFeatures" = true }
+  # Copilot chat is baked into code-server core; chat.disableAIFeatures is the
+  # kill-switch, and extensions.allowed blocks side-loaded Copilot extensions.
+  settings = { "chat.disableAIFeatures" = true }
+  machine_settings = {
+    "chat.disableAIFeatures" = true
+    "extensions.allowed" = {
+      "*"                   = true
+      "github.copilot"      = false
+      "github.copilot-chat" = false
+    }
+  }
   group = "Web IDEs"
   order = 1
 }
@@ -267,13 +323,51 @@ module "claude-code" {
   model    = var.anthropic_model
 }
 
+# Pre-approve ANTHROPIC_API_KEY so Claude Code never asks "Detected a custom
+# API key ... use this API key?". Claude Code matches the key's last 20 chars
+# in ~/.claude.json customApiKeyResponses.approved; the key (the owner's
+# session token) rotates every start, so this runs on_start. Backgrounded and
+# logged to a file so it never blocks or fails workspace startup.
+resource "coder_script" "claude_approve_key" {
+  count        = data.coder_workspace.me.start_count
+  agent_id     = coder_agent.main.id
+  display_name = "Claude Code: pre-approve API key"
+  icon         = "/icon/claude.svg"
+  run_on_start = true
+  script       = <<-EOT
+    #!/usr/bin/env bash
+    (
+      set -u
+      CFG="$HOME/.claude.json"
+      # Wait for the claude-code module to finish writing ~/.claude.json.
+      for _ in $(seq 1 60); do
+        [ -f "$CFG" ] && jq -e '.hasCompletedOnboarding == true' "$CFG" >/dev/null 2>&1 && break
+        sleep 2
+      done
+      [ -f "$CFG" ] || echo '{}' > "$CFG"
+      KEY="$${ANTHROPIC_API_KEY:-}"
+      [ -n "$KEY" ] || exit 0
+      SUFFIX=$(printf %s "$KEY" | tail -c 20)
+      tmp=$(mktemp)
+      jq --arg k "$SUFFIX" '.customApiKeyResponses = (.customApiKeyResponses // {"approved":[],"rejected":[]}) | .customApiKeyResponses.approved = (((.customApiKeyResponses.approved // []) + [$k]) | unique) | .customApiKeyResponses.rejected = ((.customApiKeyResponses.rejected // []) - [$k])' "$CFG" > "$tmp" 2>/dev/null \
+        && mv "$tmp" "$CFG" && echo "Pre-approved ANTHROPIC_API_KEY." \
+        || rm -f "$tmp"
+    ) >/tmp/claude-approve-key.log 2>&1 &
+    disown 2>/dev/null || true
+    exit 0
+  EOT
+}
+
 module "codex" {
-  count            = data.coder_workspace.me.start_count
-  source           = "registry.coder.com/coder-labs/codex/coder"
-  version          = "5.5.0"
-  agent_id         = coder_agent.main.id
-  workdir          = "/home/coder"
-  install_codex    = true
+  count         = data.coder_workspace.me.start_count
+  source        = "registry.coder.com/coder-labs/codex/coder"
+  version       = "5.5.0"
+  agent_id      = coder_agent.main.id
+  workdir       = "/home/coder"
+  install_codex = true
+  # Pinned: 0.167.0 is verified against the gateway + vLLM Responses API.
+  # Unpinned ("latest") broke startup once when Codex dropped wire_api=chat.
+  codex_version    = "0.167.0"
   base_config_toml = local.codex_base_config
 }
 
@@ -320,7 +414,7 @@ resource "coder_app" "codex" {
   open_in      = "slim-window"
   command      = <<-EOT
     cd "$HOME"
-    codex
+    codex --no-daemon
   EOT
 }
 
@@ -394,6 +488,25 @@ resource "kubernetes_pod_v1" "workspace" {
       name = "home"
       persistent_volume_claim {
         claim_name = kubernetes_persistent_volume_claim_v1.home.metadata[0].name
+      }
+    }
+
+    # Spread workspaces across nodes.
+    affinity {
+      pod_anti_affinity {
+        preferred_during_scheduling_ignored_during_execution {
+          weight = 1
+          pod_affinity_term {
+            topology_key = "kubernetes.io/hostname"
+            label_selector {
+              match_expressions {
+                key      = "app.kubernetes.io/name"
+                operator = "In"
+                values   = ["coder-workspace"]
+              }
+            }
+          }
+        }
       }
     }
   }

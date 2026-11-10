@@ -56,7 +56,8 @@ install/     openshift-install config + GPU MachineSet (examples)
 gitops/      bootstrap/root-app.yaml · operators/ · apps/   (Argo app-of-apps)
 manifests/   k8s resources per app (+ airgap overlay)
 mirror/      oc-mirror ImageSetConfig + OCI ModelCar (air-gap)
-templates/   workspace-basic · workspace-agent  (offline AI CLIs)
+templates/   workspace-basic · workspace-agent  (Claude Code + Codex via AI Gateway)
+ai-providers/ AI Gateway providers + Coder Agents models (task ai-provider)
 images/      workspace image builds + internal-registry mirror helper
 ```
 

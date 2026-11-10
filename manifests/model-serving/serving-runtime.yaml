@@ -7,10 +7,12 @@
 # D4 settings: 16K context, tensor-parallel-size 1 (single A10G), Hermes tool
 # calling (--tool-call-parser hermes + --enable-auto-tool-choice).
 #
-# NOTE (version/image): `quay.io/modh/vllm` is the Red Hat-built vLLM runtime
-# image; PIN the tag to the installed RHOAI version at P7 (shown here as a
-# recent RHOAI 2.x tag). The serving.kserve.io/v1alpha1 ServingRuntime API is
-# stable across RHOAI 2.x.
+# Image: the vLLM CUDA runtime shipped by RHOAI 3.5.2 (the digest in its
+# `vllm-cuda-runtime-template`, vLLM v0.24.0). Re-pin from
+#   oc get template vllm-cuda-runtime-template -n redhat-ods-applications \
+#     -o jsonpath='{.objects[0].spec.containers[0].image}'
+# when RHOAI is upgraded (and update mirror/imageset-config.yaml). vLLM >= 0.10
+# is required: Codex only speaks the Responses API (/v1/responses).
 apiVersion: serving.kserve.io/v1alpha1
 kind: ServingRuntime
 metadata:
@@ -30,7 +32,7 @@ spec:
   multiModel: false
   containers:
     - name: kserve-container
-      image: quay.io/modh/vllm:rhoai-2.20
+      image: registry.redhat.io/rhaii/vllm-cuda-rhel9@sha256:fd9540f3882b9aae5f862eba6c295d0e9c6b43f8c17b27b179481bfa330bfbc1
       command:
         - python
         - -m

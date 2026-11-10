@@ -14,7 +14,8 @@
 # SCM phase registered (Secret coder/coder-gitea-oauth). Workspaces obtain Gitea
 # tokens for clone/push.
 #
-# AI Gateway / Bedrock wiring (CODER_AI_GATEWAY_*) is Phase 4 (model serving).
+# AI Gateway: enabled here; the in-cluster vLLM provider is registered via the
+# Coder API by `task ai-provider` (2.39 no longer seeds providers from env).
 #
 # Required Secrets in `coder` (must exist before pods schedule, else
 # CrashLoopBackOff on env lookup): coder-db-app (CNPG), coder-oidc-client-secret
@@ -143,37 +144,34 @@ spec:
             - name: CODER_EXTERNAL_AUTH_0_REGEX
               value: "gitea\\.apps\\.cluster\\.rh-pde\\.coderdemo\\.io"
             # ── AI Gateway: in-cluster vLLM (OpenAI-compatible) — P4 ───
-            # Routes Coder Agents traffic to the RHOAI-served Qwen2.5-7B model
-            # (manifests/model-serving/). Points at the RawDeployment
-            # InferenceService's predictor Service (OpenAI /v1 API). vLLM runs
-            # without auth in-cluster, so the key is a non-secret placeholder.
-            # Bedrock is intentionally NOT wired here (optional connected-mode
-            # add-on + Coder SA IRSA annotation — a later connected toggle).
-            #
-            # NOTE: env var names confirmed against live Coder 2.37.6
-            # (CODER_AI_GATEWAY_OPENAI_BASE_URL/_KEY/_ENABLED/_ALLOW_BYOK);
-            # re-verify on the 2.39 bump. These seed the provider once ('not
-            # used in service runtime') — on an existing DB manage it via the
-            # Coder UI/API. Confirm the predictor Service DNS
-            # (<isvc>-predictor.<ns>.svc) at P7.
+            # Coder 2.39 ignores provider env vars (CODER_AI_GATEWAY_OPENAI_*);
+            # providers live in the DB. `task ai-provider` registers provider
+            # `openai` -> the RawDeployment predictor (headless Service, so the
+            # pod port :8080 is used directly). Workspaces reach it at
+            # /api/v2/ai-gateway/openai/v1. Requires an active license.
+            # Bedrock (Claude Code) is an optional connected-mode provider:
+            # `task coder-irsa` annotates the coder SA with its IRSA role and
+            # `task ai-provider` registers it (no static keys).
             - name: CODER_AI_GATEWAY_ENABLED
               value: "true"
             - name: CODER_AI_GATEWAY_STRUCTURED_LOGGING
               value: "true"
-            - name: CODER_AI_GATEWAY_OPENAI_BASE_URL
-              value: "http://qwen25-7b-predictor.rhoai-serving.svc/v1"
-            - name: CODER_AI_GATEWAY_OPENAI_KEY
-              value: "unused-local-vllm"
             - name: CODER_AI_GATEWAY_ALLOW_BYOK
               value: "false"
             # ── Provisioners (in-process; no separate provisioner app) ──
             - name: CODER_PROVISIONER_DAEMONS
               value: "3"
-            # ── Telemetry / direct-connect off for the demo network ────
+            # ── Direct-connect off for the demo network ────────────────
             - name: CODER_BLOCK_DIRECT
               value: "true"
+            # Telemetry ON: standard (non-air-gapped) Coder licenses require
+            # it — with it off the license is rejected ("License requires
+            # telemetry but telemetry is disabled") and every Premium feature,
+            # incl. AI Gateway, is unavailable. MODE=airgap only restricts
+            # workspace egress; the Coder server keeps egress. A truly
+            # disconnected install needs an air-gapped license instead.
             - name: CODER_TELEMETRY_ENABLE
-              value: "false"
+              value: "true"
             # ── Prometheus ─────────────────────────────────────────────
             - name: CODER_PROMETHEUS_ENABLE
               value: "true"

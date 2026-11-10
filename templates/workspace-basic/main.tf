@@ -9,7 +9,8 @@
 
 terraform {
   required_providers {
-    coder      = { source = "coder/coder" }
+    # Pinned below 2.20 to match workspace-agent (2.20.0 deprecates coder_task).
+    coder      = { source = "coder/coder", version = "~> 2.19.0" }
     kubernetes = { source = "hashicorp/kubernetes" }
   }
 }
@@ -132,9 +133,9 @@ resource "coder_agent" "main" {
   arch = data.coder_provisioner.me.arch
   os   = "linux"
 
+  # No `set -e`: a non-critical step must not fail the whole agent startup.
   startup_script = <<-EOT
     #!/bin/bash
-    set -e
     touch ~/.bashrc
     # User-prefixed npm globals (restricted-v2 drops CAP_SETUID, so no sudo).
     npm config set prefix "$HOME/.local" >/dev/null 2>&1 || true
@@ -151,6 +152,10 @@ resource "coder_agent" "main" {
     GIT_AUTHOR_EMAIL    = data.coder_workspace_owner.me.email
     GIT_COMMITTER_NAME  = coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)
     GIT_COMMITTER_EMAIL = data.coder_workspace_owner.me.email
+
+    # No docker socket in the pod: opt out of devcontainer detection, which
+    # otherwise stalls dashboard polls on `docker ps`.
+    CODER_AGENT_DEVCONTAINERS_ENABLE = "false"
   }
 
   metadata {
@@ -174,6 +179,14 @@ resource "coder_agent" "main" {
     interval     = 60
     timeout      = 1
   }
+
+  display_apps {
+    vscode                 = true
+    vscode_insiders        = false
+    web_terminal           = true
+    ssh_helper             = false
+    port_forwarding_helper = false
+  }
 }
 
 # ── Modules ──────────────────────────────────────────────────────────────────
@@ -188,8 +201,16 @@ module "code-server" {
   subdomain      = true
   install_prefix = "/usr/lib/code-server"
   offline        = true
-  settings         = { "chat.disableAIFeatures" = true }
-  machine_settings = { "chat.disableAIFeatures" = true }
+  settings       = { "chat.disableAIFeatures" = true }
+  machine_settings = {
+    "chat.disableAIFeatures" = true
+    # Block side-loaded Copilot extensions too.
+    "extensions.allowed" = {
+      "*"                   = true
+      "github.copilot"      = false
+      "github.copilot-chat" = false
+    }
+  }
   group = "Web IDEs"
   order = 1
 }
@@ -282,6 +303,25 @@ resource "kubernetes_pod_v1" "workspace" {
       name = "home"
       persistent_volume_claim {
         claim_name = kubernetes_persistent_volume_claim_v1.home.metadata[0].name
+      }
+    }
+
+    # Spread workspaces across nodes.
+    affinity {
+      pod_anti_affinity {
+        preferred_during_scheduling_ignored_during_execution {
+          weight = 1
+          pod_affinity_term {
+            topology_key = "kubernetes.io/hostname"
+            label_selector {
+              match_expressions {
+                key      = "app.kubernetes.io/name"
+                operator = "In"
+                values   = ["coder-workspace"]
+              }
+            }
+          }
+        }
       }
     }
   }
