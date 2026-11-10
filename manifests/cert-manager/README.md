@@ -7,8 +7,9 @@ Subscription is bootstrap-applied from `gitops/operators/10-cert-manager.yaml`.
 | File | Purpose |
 |------|---------|
 | `cluster-issuer.yaml` | `ClusterIssuer` `letsencrypt-prod` + `letsencrypt-staging` (ACME, **Route53 dns01**). |
+| `certmanager-dns01-nameservers.yaml` | Points the operator-managed controller's DNS-01 checks at public resolvers (the IPI private `cluster.<domain>` zone otherwise hides the public one). |
 | `apps-wildcard-certificate.yaml` | Wildcard `Certificate` (`*.apps…` + `*.coder.apps…`) → Secret `apps-wildcard-cert` in `openshift-ingress`. |
-| `ingresscontroller-default-cert.yaml` | Sets that wildcard as the IngressController `defaultCertificate` (scoped SSA+Force). |
+| `ingresscontroller-default-cert.yaml` | Sets that wildcard as the IngressController `defaultCertificate` + allows wildcard Routes for Coder workspace apps (scoped SSA, `Prune=false`; the only manifest for this object). |
 
 ## How TLS is delivered
 The RH cert-manager operator does **not** reconcile OpenShift `Route` objects, so

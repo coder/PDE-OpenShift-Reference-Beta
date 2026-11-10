@@ -1,29 +1,21 @@
 # RHOAI DataScienceCluster — minimal footprint: KServe only (ADR D3/D8).
 #
-# KServe in RawDeployment mode (defaultDeploymentMode: RawDeployment) with
-# serving (Knative Serverless) Removed — plain Deployments/Services, no mesh,
-# no serverless. Every other RHOAI component is Removed to keep the platform
-# small (D8); add the RHOAI dashboard later only if a UI is wanted.
-#
-# NOTE (version): the exact component list varies across RHOAI 2.x minors.
-# `kserve.defaultDeploymentMode` + `kserve.serving.managementState: Removed`
-# are the RawDeployment levers. Confirm the component set against the installed
-# rhods-operator at P7.
+# KServe in RawDeployment mode — plain Deployments/Services, no mesh, no
+# serverless. RHOAI 3.x removed KServe Serverless, so RawDeployment is the only
+# mode and `kserve.defaultDeploymentMode` / `kserve.serving` no longer exist in
+# the schema (verified on rhods-operator 3.5.2). Every other RHOAI component is
+# Removed to keep the platform small (D8); add the dashboard later if a UI is wanted.
 apiVersion: datasciencecluster.opendatahub.io/v1
 kind: DataScienceCluster
 metadata:
   name: default-dsc
   annotations:
     argocd.argoproj.io/sync-wave: "0"
-    argocd.argoproj.io/sync-options: ServerSideApply=true,Force=true
+    argocd.argoproj.io/sync-options: ServerSideApply=true
 spec:
   components:
     kserve:
       managementState: Managed
-      defaultDeploymentMode: RawDeployment
-      serving:
-        managementState: Removed
-        name: knative-serving
     dashboard:
       managementState: Removed
     workbenches:

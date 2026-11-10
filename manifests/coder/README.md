@@ -9,8 +9,7 @@ wave 3).
 |------|---------|
 | `postgres-cluster.yaml` | CNPG Postgres `coder-db` (auto-generates `coder-db-app` Secret with `uri`). |
 | `secrets.yaml` | ESO `coder-oidc-client-secret` (Keycloak `coder` client secret via `keycloak-realm-kv`). |
-| `routes.yaml` | OpenShift Routes: `coder` (access URL) + `coder-wildcard` (`*.coder.apps…` workspace apps). |
-| `ingresscontroller-wildcard.yaml` | Enables wildcard Routes on the default IngressController (scoped SSA+Force). |
+| `routes.yaml` | OpenShift Routes: `coder` (access URL) + `coder-wildcard` (`*.coder.apps…` workspace apps). The IngressController `wildcardPolicy` they need is set in `manifests/cert-manager/ingresscontroller-default-cert.yaml`. |
 
 Three Secrets back Coder, all generated/shared in-cluster (never in git):
 `coder-db-app` (CNPG), `coder-oidc-client-secret` (ESO), and `coder-gitea-oauth`

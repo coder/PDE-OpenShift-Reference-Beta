@@ -90,6 +90,14 @@ tasks:
           echo "  waiting for OpenShift GitOps operator ($i)"; sleep 10
         done
         oc get crd applications.argoproj.io >/dev/null 2>&1 || { echo "  Argo CRD not ready"; exit 1; }
+        echo "[bootstrap] waiting for the {{.GITOPS_NS}} namespace + default Argo CD instance..."
+        for i in $(seq 1 60); do
+          oc get argocd openshift-gitops -n {{.GITOPS_NS}} >/dev/null 2>&1 && break
+          echo "  waiting for {{.GITOPS_NS}}/openshift-gitops ($i)"; sleep 10
+        done
+        oc get argocd openshift-gitops -n {{.GITOPS_NS}} >/dev/null 2>&1 || { echo "  Argo CD instance not ready"; exit 1; }
+        echo "[bootstrap] granting the Argo application controller cluster-admin..."
+        oc apply -f gitops/bootstrap/argocd-controller-rbac.yaml
         echo "[bootstrap] applying root app-of-apps..."
         oc apply -f gitops/bootstrap/root-app.yaml
         echo "[bootstrap] Argo is reconciling all apps (track: task status)."
@@ -107,7 +115,9 @@ tasks:
           echo "[irsa] waiting for the cert-manager ServiceAccount..."
           for i in $(seq 1 60); do oc get sa cert-manager -n cert-manager >/dev/null 2>&1 && break; sleep 10; done
           oc annotate sa cert-manager -n cert-manager eks.amazonaws.com/role-arn="$CERT_MANAGER_ROLE_ARN" --overwrite
-          oc rollout restart deploy -n cert-manager -l app.kubernetes.io/name=cert-manager 2>/dev/null || true
+          # Recreate the pod so the pod-identity webhook injects the AWS web-identity env
+          # (the RH operator owns the Deployment and reverts `rollout restart`).
+          oc delete pod -n cert-manager -l app.kubernetes.io/name=cert-manager --ignore-not-found
           echo "[irsa] cert-manager SA annotated."
         fi
         if [ -n "${CODER_BEDROCK_ROLE_ARN:-}" ]; then

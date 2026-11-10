@@ -21,6 +21,8 @@ metadata:
   annotations:
     serving.kserve.io/deploymentMode: RawDeployment
     argocd.argoproj.io/sync-wave: "3"
+    # KServe CRDs only exist once the DataScienceCluster (wave 0) reconciles.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   predictor:
     minReplicas: 1

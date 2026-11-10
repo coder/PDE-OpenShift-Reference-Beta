@@ -15,7 +15,13 @@ metadata:
   namespace: openshift-ingress-operator
   annotations:
     argocd.argoproj.io/sync-wave: "2"
-    argocd.argoproj.io/sync-options: ServerSideApply=true,Force=true
+    # Prune=false: never let Argo delete the cluster's default router.
+    argocd.argoproj.io/sync-options: ServerSideApply=true,Prune=false
 spec:
   defaultCertificate:
     name: apps-wildcard-cert
+  # Coder workspace apps use wildcard Routes (*.coder.apps..., manifests/coder/routes.yaml).
+  # Kept in this one manifest: two Argo apps applying the same IngressController
+  # under the same SSA field manager drop each other's fields and never sync.
+  routeAdmission:
+    wildcardPolicy: WildcardsAllowed

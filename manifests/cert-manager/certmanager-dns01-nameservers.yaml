@@ -1,0 +1,21 @@
+# Make cert-manager's DNS-01 checks use public resolvers.
+#
+# OpenShift IPI on AWS creates a PRIVATE Route53 zone for <cluster>.<baseDomain>
+# that the in-cluster resolver answers from. cert-manager then finds that zone's
+# SOA for _acme-challenge.apps.<cluster>..., skips it as private, and fails with
+# "zone not found in Route 53". Public resolvers see the public (delegated) zone.
+#
+# Singleton owned by the RH cert-manager operator: SSA-patch only controllerConfig,
+# never prune it.
+apiVersion: operator.openshift.io/v1alpha1
+kind: CertManager
+metadata:
+  name: cluster
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/sync-options: ServerSideApply=true,Prune=false
+spec:
+  controllerConfig:
+    overrideArgs:
+      - --dns01-recursive-nameservers-only
+      - --dns01-recursive-nameservers=1.1.1.1:53,8.8.8.8:53
