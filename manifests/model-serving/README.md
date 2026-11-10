@@ -12,15 +12,18 @@ namespace (cluster-scoped RHOAI CRs apply cluster-wide).
 | `serving-runtime.yaml` | vLLM `ServingRuntime` (Qwen2.5-7B): 16K ctx, TP-1, Hermes tool calling (D4). |
 | `inference-service.yaml` | `InferenceService` (RawDeployment) — Qwen2.5-7B on 1× A10G via `hf://` storageUri; GPU request + toleration/nodeSelector. |
 
-The model is OpenAI-compatible; **Coder's AI Gateway** (`gitops/apps/coder.yaml`,
-`CODER_AI_GATEWAY_OPENAI_BASE_URL`) routes Agents traffic to the InferenceService
-predictor. Bedrock is an optional connected-mode add-on (not wired in P4).
+The model is OpenAI-compatible (chat completions + Responses API); **Coder's AI
+Gateway** routes Agents traffic to the InferenceService predictor through the
+`openai` provider that `task ai-provider` registers via the Coder API
+(`http://qwen25-7b-predictor.rhoai-serving.svc:8080/v1` — the predictor Service
+is headless, so use the pod port). Bedrock is an optional connected-mode add-on
+(not wired in P4).
 
 **Infra assumption:** a g5.2xlarge (A10G) GPU MachineSet exists (terraform);
 NFD + NVIDIA GPU operator (bootstrap operators) label/taint the GPU node.
 
-**Version note:** RHOAI (ODH) CRD fields and the `quay.io/modh/vllm` image tag
-are pinned to a recent RHOAI 2.x; confirm against the installed rhods-operator
-at the P7 fresh-cluster acceptance run (no live validation available now).
+**Version note:** the vLLM image is pinned by digest to the one RHOAI 3.5.2
+ships (`vllm-cuda-runtime-template`, vLLM v0.24.0); re-pin on RHOAI upgrades
+(see the comment in `serving-runtime.yaml`).
 
 Scale-up (documented, scaled to 0): Llama-3.3-70B on L40S with tensor parallelism.

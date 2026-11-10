@@ -30,7 +30,7 @@ spec:
       mirrors:
         - image-registry.openshift-image-registry.svc:5000/scm
     # RHOAI vLLM runtime
-    - source: quay.io/modh/vllm
+    - source: registry.redhat.io/rhaii/vllm-cuda-rhel9
       mirrors:
         - image-registry.openshift-image-registry.svc:5000/rhoai-serving
     # Red Hat operator/ubi images (operators are mirrored by oc-mirror; this

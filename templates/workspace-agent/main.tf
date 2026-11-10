@@ -167,7 +167,7 @@ locals {
     name = "Coder AI Gateway (in-cluster vLLM)"
     base_url = "${local.ai_gw_openai}"
     env_key = "OPENAI_API_KEY"
-    wire_api = "chat"
+    wire_api = "responses"
 
     [projects."/home/coder"]
     trust_level = "trusted"
@@ -244,18 +244,18 @@ resource "coder_env" "anthropic_api_key" {
 
 # ── Modules ──────────────────────────────────────────────────────────────────
 module "code-server" {
-  count          = data.coder_workspace.me.start_count
-  source         = "registry.coder.com/coder/code-server/coder"
-  version        = "1.6.0"
-  agent_id       = coder_agent.main.id
-  folder         = "/home/coder"
-  subdomain      = true
-  install_prefix = "/usr/lib/code-server"
-  offline        = true
+  count            = data.coder_workspace.me.start_count
+  source           = "registry.coder.com/coder/code-server/coder"
+  version          = "1.6.0"
+  agent_id         = coder_agent.main.id
+  folder           = "/home/coder"
+  subdomain        = true
+  install_prefix   = "/usr/lib/code-server"
+  offline          = true
   settings         = { "chat.disableAIFeatures" = true }
   machine_settings = { "chat.disableAIFeatures" = true }
-  group = "Web IDEs"
-  order = 1
+  group            = "Web IDEs"
+  order            = 1
 }
 
 module "claude-code" {

@@ -18,5 +18,6 @@ task mirror      # 1) workspace images GHCR->internal  2) build+push modelcar  3
   apply to the cluster; `manifests/airgap/image-digest-mirror-set.yaml` is the
   illustrative committed target.
 
-**P7:** pin the catalog index tag to the cluster OCP minor and the `modh/vllm`
-tag to the installed RHOAI; run the real mirror + disconnected pull-through.
+**P7:** pin the catalog index tag to the cluster OCP minor and the vLLM image
+digest to the installed RHOAI (`vllm-cuda-runtime-template`); run the real
+mirror + disconnected pull-through.

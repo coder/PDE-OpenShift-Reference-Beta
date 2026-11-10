@@ -55,7 +55,8 @@ task status                    # Argo apps + InferenceService + routes + GPU nod
 `task deploy` runs: **bootstrap** (operators → Argo root app‑of‑apps) →
 **irsa** (annotate cert‑manager SA from `CERT_MANAGER_ROLE_ARN`) → **gpu-node** →
 **wait-apps** (Argo Healthy+Synced) → **push-templates** (needs `coder login`) →
-air‑gap overlay toggle (`MODE`).
+**ai-provider** (registers the in‑cluster vLLM as AI Gateway provider `openai`;
+needs `coder login` + license) → air‑gap overlay toggle (`MODE`).
 
 ### First Coder login (owner)
 Password auth is disabled, so the **first user must come from Keycloak**: the
@@ -67,7 +68,11 @@ first OIDC sign‑in on an empty deployment becomes the Coder **owner**.
    group → owner once the license enables role sync; signing in first as
    alice/bob would make a non‑admin the owner).
 2. Only then `coder login https://coder.apps.cluster.<domain>` (browser token flow),
-   `coder licenses add -f <license.jwt>`, and `task push-templates`.
+   `coder licenses add -f <license.jwt>`, `task push-templates`, and
+   `task ai-provider`. Coder 2.39 configures AI Gateway providers only via the
+   API/UI (provider env vars are ignored), and AI Gateway is Premium — the
+   license must show as active (`coder licenses list`; telemetry stays enabled,
+   since standard licenses are rejected without it).
 
 If `coder login` asks *"Would you like to create the first user?"*, answer
 **no** — it creates a *password* owner that can never sign in (password auth is

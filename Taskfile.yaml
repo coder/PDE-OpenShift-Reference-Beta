@@ -13,6 +13,7 @@
 #   task bootstrap                    - operators + Argo root app-of-apps
 #   task gpu-node                     - derive a g5.2xlarge GPU MachineSet
 #   task push-templates               - coder templates push (needs `coder login`)
+#   task ai-provider                  - register in-cluster vLLM with the AI Gateway (needs `coder login` + license)
 #   task creds [KEYCLOAK_NS=<ns>]      - print demo logins (reads live Secrets)
 #   task status | reset | mirror | destroy
 #
@@ -75,6 +76,7 @@ tasks:
       - task: gpu-node
       - task: wait-apps
       - task: push-templates
+      - task: ai-provider
       - task: '{{if eq .MODE "airgap"}}airgap-enable{{else}}airgap-disable{{end}}'
       - |
         echo "[deploy] done (MODE={{.MODE}}). Next: 'task creds' for demo logins; 'task status' for health."
@@ -193,6 +195,38 @@ tasks:
           echo "[templates] pushing $t (image_registry={{.WORKSPACE_IMAGE_REGISTRY}}) ..."
           coder templates push "$t" -d "templates/$t" --yes --variable image_registry="{{.WORKSPACE_IMAGE_REGISTRY}}"
         done
+
+  ai-provider:
+    desc: Register the in-cluster vLLM as AI Gateway provider `openai` (needs `coder login` + license)
+    silent: true
+    vars:
+      # Headless predictor Service -> address the vLLM pod port directly.
+      AI_PROVIDER_BASE_URL: '{{.AI_PROVIDER_BASE_URL | default (printf "http://qwen25-7b-predictor.%s.svc:8080/v1" .SERVING_NS)}}'
+    cmds:
+      - |
+        set -euo pipefail
+        if ! command -v coder >/dev/null || ! TOKEN=$(coder login token 2>/dev/null); then
+          echo "[ai-provider] coder CLI not logged in -> skipping. Then: coder login https://coder.apps.cluster.<domain> && task ai-provider"; exit 0
+        fi
+        URL=$(coder whoami -o json | sed -n 's/.*"url": *"\([^"]*\)".*/\1/p' | head -1)
+        API="$URL/api/v2/ai/providers"
+        # Coder 2.39 manages providers in the DB only (env vars are ignored).
+        # vLLM runs without auth in-cluster; the key is a non-secret placeholder.
+        OUT=$(mktemp); trap 'rm -f "$OUT"' EXIT
+        api() { printf 'Coder-Session-Token: %s\n' "$TOKEN" | curl -sS -o "$OUT" -w '%{http_code}' -H @- -H 'Content-Type: application/json' "$@"; }
+        code=$(api "$API/openai")
+        if [ "$code" = 200 ]; then
+          echo "[ai-provider] updating provider openai -> {{.AI_PROVIDER_BASE_URL}}"
+          code=$(api -X PATCH "$API/openai" -d '{"enabled":true,"base_url":"{{.AI_PROVIDER_BASE_URL}}"}')
+        else
+          echo "[ai-provider] creating provider openai -> {{.AI_PROVIDER_BASE_URL}}"
+          code=$(api -X POST "$API" -d '{"type":"openai","name":"openai","display_name":"In-cluster vLLM (Qwen2.5-7B)","enabled":true,"base_url":"{{.AI_PROVIDER_BASE_URL}}","api_keys":["unused-local-vllm"]}')
+        fi
+        case "$code" in
+          200|201) echo "[ai-provider] ok. Workspaces use $URL/api/v2/ai-gateway/openai/v1" ;;
+          *) echo "[ai-provider] WARN: failed (HTTP $code): $(cat "$OUT")"
+             echo "  AI Gateway needs an active license: coder licenses add -f <license.jwt> && task ai-provider" ;;
+        esac
 
   airgap-enable:
     desc: Apply the air-gap overlay (egress-deny + registry redirect + oci model)

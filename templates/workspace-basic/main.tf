@@ -180,18 +180,18 @@ resource "coder_agent" "main" {
 # code-server — runs the copy pre-baked into the image (offline; never fetches
 # from code-server.dev). Copilot chat disabled (demo uses its own AI).
 module "code-server" {
-  count          = data.coder_workspace.me.start_count
-  source         = "registry.coder.com/coder/code-server/coder"
-  version        = "1.6.0"
-  agent_id       = coder_agent.main.id
-  folder         = "/home/coder"
-  subdomain      = true
-  install_prefix = "/usr/lib/code-server"
-  offline        = true
+  count            = data.coder_workspace.me.start_count
+  source           = "registry.coder.com/coder/code-server/coder"
+  version          = "1.6.0"
+  agent_id         = coder_agent.main.id
+  folder           = "/home/coder"
+  subdomain        = true
+  install_prefix   = "/usr/lib/code-server"
+  offline          = true
   settings         = { "chat.disableAIFeatures" = true }
   machine_settings = { "chat.disableAIFeatures" = true }
-  group = "Web IDEs"
-  order = 1
+  group            = "Web IDEs"
+  order            = 1
 }
 
 # git-clone — only when a repo is provided.

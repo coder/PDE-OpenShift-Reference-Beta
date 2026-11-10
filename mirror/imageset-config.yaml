@@ -42,5 +42,5 @@ mirror:
     - name: ghcr.io/coder/pde-openshift-reference/ubi9-base-workspace:latest
     - name: ghcr.io/coder/pde-openshift-reference/ubi9-node-workspace:latest
     - name: docker.gitea.com/gitea:1.27.0-rootless
-    - name: quay.io/modh/vllm:rhoai-2.20
+    - name: registry.redhat.io/rhaii/vllm-cuda-rhel9@sha256:fd9540f3882b9aae5f862eba6c295d0e9c6b43f8c17b27b179481bfa330bfbc1
     - name: registry.redhat.io/openshift4/ose-cli:latest
