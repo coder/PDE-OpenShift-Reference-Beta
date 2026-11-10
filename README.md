@@ -50,11 +50,11 @@ task reset         # re-seed the Keycloak realm (see deploy.md for what it does/
 task destroy       # prints the guarded teardown steps
 ```
 `task creds` works as soon as the identity layer is deployed; see
-[`docs/deploy.md`](docs/deploy.md#credentials-retrieving-the-generated-demo-logins).
+[`docs/deploy.md`](docs/deploy.md#credentials).
 
 ## Repository layout
 ```
-docs/        architecture.md · deploy.md · air-gap.md · decisions.md  (5 docs max)
+docs/        architecture.md · deploy.md · air-gap.md · decisions.md · working-implementation-guide.md
 terraform/   Route53 zone + IRSA IAM roles (cert-manager, optional Bedrock)
 install/     openshift-install config + GPU MachineSet (examples)
 gitops/      bootstrap/root-app.yaml · operators/ · apps/   (Argo app-of-apps)
@@ -68,6 +68,8 @@ images/      workspace image builds + internal-registry mirror helper
 ## Read next
 - [`docs/architecture.md`](docs/architecture.md) — components + the two run‑modes.
 - [`docs/deploy.md`](docs/deploy.md) — deploy/reset runbook.
+- [`docs/working-implementation-guide.md`](docs/working-implementation-guide.md) — the
+  step‑by‑step path the live environment was built on, driven from Coder Agents.
 - [`docs/air-gap.md`](docs/air-gap.md) — disconnected install, mirroring, egress‑deny.
 - [`docs/decisions.md`](docs/decisions.md) — the ratified ADRs (D1–D9).
 
