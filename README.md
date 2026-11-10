@@ -50,7 +50,7 @@ task reset         # re-seed the Keycloak realm (see deploy.md for what it does/
 task destroy       # prints the guarded teardown steps
 ```
 `task creds` works as soon as the identity layer is deployed; see
-[`docs/deploy.md`](docs/deploy.md#credentials-retrieving-the-generated-demo-logins).
+[`docs/deploy.md`](docs/deploy.md#credentials).
 
 ## Repository layout
 ```

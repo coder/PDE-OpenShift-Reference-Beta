@@ -23,13 +23,20 @@ account end‑to‑end. Nothing secret is committed (D5).
    install needs an air‑gapped license — see [`air-gap.md`](air-gap.md#known-gaps)).
 
 ## 1. Install the cluster (STS/OIDC — required for IRSA)
-See [`install/`](../install/). Summary:
+See [`install/`](../install/); exact commands in
+[`working-implementation-guide.md`](working-implementation-guide.md#part-c-install-openshift-sts--manual-credentials). Summary:
 ```bash
-cp install/install-config.yaml.example install-config.yaml   # fill pull secret + sshKey (NOT committed)
-openshift-install create manifests --dir .
-ccoctl aws create-all --name <cluster> --region us-east-1 \
-  --credentials-requests-dir <crs> --output-dir .            # creates the IAM OIDC provider
-openshift-install create cluster --dir .
+./install/install-tools.sh                                    # oc, openshift-install, ccoctl, oc-mirror, aws, task, ...
+./install/render-install-config.sh --pull-secret <pull-secret.json> \
+  --ssh-key <id.pub> --out-dir <dir>                          # outside the repo (NOT committed)
+oc adm release extract --credentials-requests --included \
+  --install-config=<dir>/install-config.yaml --to=<crs> \
+  --from=<release-image> -a <pull-secret.json>
+ccoctl aws create-all --name <name> --region us-east-1 \
+  --credentials-requests-dir <crs> --output-dir <ccoctl-out>  # creates the IAM OIDC provider
+openshift-install create manifests --dir <dir>
+cp <ccoctl-out>/manifests/* <dir>/manifests/ && cp -a <ccoctl-out>/tls <dir>/
+openshift-install create cluster --dir <dir>
 ```
 
 ## 2. IRSA roles (after install)

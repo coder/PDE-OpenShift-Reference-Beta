@@ -1,16 +1,19 @@
-# OpenShift IPI install-config for AWS — EXAMPLE (P7).
+# OpenShift IPI install-config for AWS — EXAMPLE (matches the accepted live run).
 #
-# Copy to install-config.yaml (gitignored) next to where you run
-# `openshift-install`, fill the <PLACEHOLDERS>, then:
-#   openshift-install create cluster --dir <dir>
+# Render it with the pull secret + SSH key (read from files, never committed):
+#   ./install/render-install-config.sh --pull-secret <file> --ssh-key <file.pub> --out-dir <dir>
+# or copy to <dir>/install-config.yaml (gitignored) and fill the <PLACEHOLDERS>.
 #
 # IRSA REQUIREMENT: this demo's cert-manager (Route53) and optional Coder
 # (Bedrock) use IRSA, which needs the cluster in STS/OIDC mode. Hence
-# `credentialsMode: Manual` + the Cloud Credential Operator utility (ccoctl):
-#   openshift-install create manifests --dir <dir>
-#   ccoctl aws create-all --name <cluster> --region <region> \
+# `credentialsMode: Manual` + the Cloud Credential Operator utility (ccoctl);
+# see docs/working-implementation-guide.md (Part C) for the exact sequence:
+#   oc adm release extract --credentials-requests --included --install-config ...
+#   ccoctl aws create-all --name <name> --region <region> \
 #     --credentials-requests-dir <cr-dir> --output-dir <out>
-#   # copy ccoctl's generated manifests/tls into <dir> before create cluster
+#   openshift-install create manifests --dir <dir>
+#   # copy ccoctl's generated manifests/ + tls/ into <dir>, then:
+#   openshift-install create cluster --dir <dir>
 # ccoctl creates the IAM OIDC provider whose ARN/issuer feed terraform (IRSA).
 #
 # NOTE: pullSecret + sshKey are deploy-time inputs — NEVER commit the filled file (D5).
@@ -25,12 +28,15 @@ controlPlane:
   platform:
     aws:
       type: m6i.xlarge
+      # 2 AZs: IPI uses one NAT EIP per AZ and the default EIP quota is 5.
+      zones: [us-east-1a, us-east-1b]
 compute:
   - name: worker
     replicas: 3
     platform:
       aws:
         type: m6i.2xlarge
+        zones: [us-east-1a, us-east-1b]
     # GPU workers are added POST-install via install/gpu-machineset.yaml.example
     # (or `task gpu-node`) so the base install stays standard.
 platform:

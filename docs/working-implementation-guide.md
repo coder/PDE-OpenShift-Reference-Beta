@@ -80,17 +80,21 @@ The agent prefixes its commands with
 >    `alias DEMO_CODER='env -u CODER_URL -u CODER_SESSION_TOKEN -u CODER_AGENT_TOKEN -u CODER_AGENT_URL CODER_CONFIG_DIR=$HOME/pde-deploy/coder-cli'`.
 
 ### A4. Install the CLIs (into `~/.local/bin`, so they survive workspace restarts)
-Have the agent create `~/pde-deploy/install-tools.sh` and run it. Restarts wipe
-`/usr/local` and `/opt`, so you'll re-run it after one. It installs:
-- `oc`, `openshift-install` and `ccoctl`, **pinned to 4.21.42**, from
-  `mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/<ver>/`;
-- `oc-mirror` (the RHEL9 build; on Ubuntu it needs `libgpgme.so.11` and
-  `libassuan.so.0` taken from UBI9 RPMs, plus an `LD_LIBRARY_PATH` wrapper);
-- AWS CLI v2;
-- go-task.
+Run [`install/install-tools.sh`](../install/install-tools.sh) (you or the agent):
+```bash
+./install/install-tools.sh          # OCP_VERSION=4.21.42 by default; PREFIX=~/.local; FORCE=1 to reinstall
+```
+Restarts wipe `/usr/local` and `/opt`, so you'll re-run it after one. It's
+idempotent and skips anything already installed. It installs:
+- `oc`, `openshift-install`, `ccoctl` and `oc-mirror`, pinned to `OCP_VERSION`,
+  from `mirror.openshift.com`. `oc-mirror` is the RHEL9 build. If the OS lacks
+  `libgpgme.so.11`/`libassuan.so.0` (Ubuntu does), the script pulls them from
+  UBI9 and installs a small `LD_LIBRARY_PATH` wrapper;
+- AWS CLI v2 and go-task;
+- Terraform and `jq`, only if they aren't already on `PATH`.
 
-Terraform, `jq` and `python3` come with the template. The `coder` CLI is already in
-the workspace.
+It checks for `curl`, `tar`, `unzip` and `python3`, and only supports Linux
+x86_64. The `coder` CLI is already in the workspace.
 
 ---
 
@@ -159,18 +163,26 @@ dig +short NS rh-pde.coderdemo.io        # must return the new zone's servers
 ## Part C: Install OpenShift (STS / manual credentials)
 
 ### C1. install-config
-Create `~/pde-deploy/install-config.yaml.tmpl` from
 [`install/install-config.yaml.example`](../install/install-config.yaml.example)
-with these settings:
+matches the live install as committed:
 - `baseDomain: rh-pde.coderdemo.io` and `metadata.name: cluster`;
 - `credentialsMode: Manual`;
 - control plane: 3 × `m6i.xlarge`; compute: 3 × `m6i.2xlarge`;
-- `zones: [us-east-1a, us-east-1b]` on both pools;
-- `pullSecret: '__PULL_SECRET__'` and `sshKey: '__SSH_KEY__'` placeholders.
+- `zones: [us-east-1a, us-east-1b]` on both pools.
 
-A small render script (`~/pde-deploy/render-install-config.sh`) substitutes the
-pull secret and public key and writes `~/pde-deploy/cluster/install-config.yaml`.
-It also keeps a backup in `secrets/`, because `openshift-install` consumes the file.
+To change any of these, use a copy and pass it with `--template`. Render it
+with the pull secret and public key, which are read from files:
+```bash
+cd ~/PDE-OpenShift-Reference-Beta
+./install/render-install-config.sh \
+  --pull-secret ~/pde-deploy/secrets/pull-secret.json \
+  --ssh-key     ~/pde-deploy/secrets/id_ed25519.pub \
+  --out-dir     ~/pde-deploy/cluster
+```
+The script validates its inputs and writes
+`~/pde-deploy/cluster/install-config.yaml` (mode 0600). It also writes a `.bak`
+copy, because `openshift-install` consumes the original. It refuses to write
+inside a git checkout.
 
 ### C2. STS (ccoctl) and the cluster
 ```bash
@@ -305,7 +317,7 @@ your own browser.
 ## Part G: Day-2 and teardown
 - **Changes:** ask the agent for a branch, have it push to the fork, then
   review and merge the PR yourself. Argo syncs `main` automatically.
-- **After a workspace restart:** re-run `~/pde-deploy/install-tools.sh` and
+- **After a workspace restart:** re-run `./install/install-tools.sh` and
   refresh `~/.aws/credentials`.
 - **Reset between demos:** `task reset` re-runs the realm import only (see
   [`deploy.md`](deploy.md#reset-between-demos)). Not yet validated live.
