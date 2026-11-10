@@ -5,7 +5,12 @@
 # mode and `kserve.defaultDeploymentMode` / `kserve.serving` no longer exist in
 # the schema (verified on rhods-operator 3.5.2). Every other RHOAI component is
 # Removed to keep the platform small (D8); add the dashboard later if a UI is wanted.
-apiVersion: datasciencecluster.opendatahub.io/v1
+#
+# API v2 (the storage version on RHOAI 3.x). v1 is still served but has
+# codeflare/modelmeshserving, which v2 dropped; applying v1 over the stored v2
+# object converts them to null and the update is rejected. v2 renamed
+# datasciencepipelines -> aipipelines.
+apiVersion: datasciencecluster.opendatahub.io/v2
 kind: DataScienceCluster
 metadata:
   name: default-dsc
@@ -20,15 +25,11 @@ spec:
       managementState: Removed
     workbenches:
       managementState: Removed
-    modelmeshserving:
-      managementState: Removed
-    datasciencepipelines:
+    aipipelines:
       managementState: Removed
     kueue:
       managementState: Removed
     ray:
-      managementState: Removed
-    codeflare:
       managementState: Removed
     trainingoperator:
       managementState: Removed
