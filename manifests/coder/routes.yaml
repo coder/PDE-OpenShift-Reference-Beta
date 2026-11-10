@@ -5,7 +5,7 @@
 #    (CODER_DISABLE_PATH_APPS=true routes apps to subdomains). wildcardPolicy
 #    Subdomain serves every *.coder.apps.cluster.rh-pde.coderdemo.io host; the
 #    first host label is a placeholder. Requires the IngressController to allow
-#    wildcard routes — see ingresscontroller-wildcard.yaml.
+#    wildcard routes — set in manifests/cert-manager/ingresscontroller-default-cert.yaml.
 #
 # Both target the chart's `coder` Service (port name `http`, 80). cert-manager
 # annotations populate the cert once the ClusterIssuer exists (later phase); the
