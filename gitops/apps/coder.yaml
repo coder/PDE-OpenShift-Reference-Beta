@@ -186,6 +186,11 @@ spec:
             name: coder
             workspacePerms: true
             enableDeployments: true
+            # Templates create pods/PVCs in coder-workspaces (not the release
+            # namespace); the chart adds a Role + RoleBinding there. The
+            # namespace itself is created by coder-config.
+            workspaceNamespaces:
+              - name: coder-workspaces
           # OpenShift restricted-v2 SCC compliance (docs.coder.com/install/openshift).
           securityContext:
             runAsNonRoot: true

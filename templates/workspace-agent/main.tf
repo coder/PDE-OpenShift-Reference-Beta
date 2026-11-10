@@ -246,14 +246,14 @@ resource "coder_env" "anthropic_api_key" {
 module "code-server" {
   count          = data.coder_workspace.me.start_count
   source         = "registry.coder.com/coder/code-server/coder"
-  version        = "1.3.1"
+  version        = "1.6.0"
   agent_id       = coder_agent.main.id
   folder         = "/home/coder"
   subdomain      = true
   install_prefix = "/usr/lib/code-server"
   offline        = true
   settings         = { "chat.disableAIFeatures" = true }
-  machine-settings = { "chat.disableAIFeatures" = true }
+  machine_settings = { "chat.disableAIFeatures" = true }
   group = "Web IDEs"
   order = 1
 }
@@ -261,7 +261,7 @@ module "code-server" {
 module "claude-code" {
   count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/coder/claude-code/coder"
-  version  = "5.4.0"
+  version  = "5.5.2"
   agent_id = coder_agent.main.id
   workdir  = "/home/coder"
   model    = var.anthropic_model
@@ -270,7 +270,7 @@ module "claude-code" {
 module "codex" {
   count            = data.coder_workspace.me.start_count
   source           = "registry.coder.com/coder-labs/codex/coder"
-  version          = "5.3.2"
+  version          = "5.5.0"
   agent_id         = coder_agent.main.id
   workdir          = "/home/coder"
   install_codex    = true
@@ -280,7 +280,7 @@ module "codex" {
 module "git-clone" {
   count    = data.coder_parameter.git_repo.value != "" ? data.coder_workspace.me.start_count : 0
   source   = "registry.coder.com/coder/git-clone/coder"
-  version  = "1.0.22"
+  version  = "2.0.5"
   agent_id = coder_agent.main.id
   url      = data.coder_parameter.git_repo.value
   base_dir = "/home/coder"
@@ -289,7 +289,7 @@ module "git-clone" {
 module "dotfiles" {
   count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/coder/dotfiles/coder"
-  version  = "1.4.1"
+  version  = "1.4.2"
   agent_id = coder_agent.main.id
 }
 

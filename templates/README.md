@@ -18,12 +18,16 @@ Registry modules (`registry.coder.com/...`) are fetched at push time; for
 air-gap they are vendored/mirrored in Phase 6.
 
 ## Images
-Workspaces pull `ubi9-node-workspace:latest` from the OpenShift internal
-registry (`image_registry` variable default). Build + mirror:
-```bash
-# built to GHCR by .github/workflows/build-images.yml, then:
-NS=coder-workspaces ./images/mirror-to-internal-registry.sh
-```
+The `image_registry` variable picks where workspaces pull `ubi9-node-workspace:latest`.
+`task push-templates` sets it per `MODE`:
+- **connected** (default): `ghcr.io/coder/pde-openshift-reference` (public GHCR
+  build from `.github/workflows/build-images.yml`).
+- **airgap**: the OpenShift internal registry (the template default), filled by
+  `task mirror` / `NS=coder-workspaces ./images/mirror-to-internal-registry.sh`.
+
+Override with `task push-templates WORKSPACE_IMAGE_REGISTRY=<registry/path>`.
+Workspaces run in the `coder-workspaces` namespace (created by `coder-config`;
+the Coder chart's `workspaceNamespaces` grants its ServiceAccount pod/PVC rights there).
 
 **Validated:** `terraform validate` (coder + kubernetes providers). Live
 workspace create + AI round-trip to the in-cluster model is a P7 item.

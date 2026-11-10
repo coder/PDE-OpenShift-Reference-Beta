@@ -32,6 +32,10 @@ vars:
   CODER_NS: '{{.CODER_NS | default "coder"}}'
   # OCI ModelCar image (internal registry) used by the air-gap InferenceService.
   MODELCAR_IMAGE: '{{.MODELCAR_IMAGE | default "image-registry.openshift-image-registry.svc:5000/rhoai-serving/qwen25-7b-modelcar:latest"}}'
+  # Workspace image registry passed to the templates' `image_registry` variable:
+  # connected pulls the public GHCR build directly; airgap pulls the copy that
+  # `task mirror` puts in the internal registry.
+  WORKSPACE_IMAGE_REGISTRY: '{{.WORKSPACE_IMAGE_REGISTRY | default (eq .MODE "airgap" | ternary "image-registry.openshift-image-registry.svc:5000/coder-workspaces" "ghcr.io/coder/pde-openshift-reference")}}'
 
 tasks:
 
@@ -186,8 +190,8 @@ tasks:
           echo "[templates] coder CLI not found -> skipping. Then: coder login https://coder.apps.cluster.<domain> && task push-templates"; exit 0
         fi
         for t in workspace-basic workspace-agent; do
-          echo "[templates] pushing $t ..."
-          coder templates push "$t" -d "templates/$t" --yes
+          echo "[templates] pushing $t (image_registry={{.WORKSPACE_IMAGE_REGISTRY}}) ..."
+          coder templates push "$t" -d "templates/$t" --yes --variable image_registry="{{.WORKSPACE_IMAGE_REGISTRY}}"
         done
 
   airgap-enable:

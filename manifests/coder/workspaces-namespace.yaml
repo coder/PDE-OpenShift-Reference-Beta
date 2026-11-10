@@ -1,0 +1,18 @@
+# Namespace for Coder workspace pods + PVCs (templates' `namespace` default).
+#
+# The Coder chart grants its ServiceAccount a Role in this namespace via
+# coder.serviceAccount.workspaceNamespaces (gitops/apps/coder.yaml) but does not
+# create the namespace, so it lives here, in coder-config (wave 2), ahead of the
+# chart (wave 3). Also the target of the air-gap egress NetworkPolicy and the
+# internal-registry image mirror (images/mirror-to-internal-registry.sh).
+#
+# Prune=false: removing it from git must never delete users' workspaces.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: coder-workspaces
+  labels:
+    app.kubernetes.io/part-of: pde-openshift-reference
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/sync-options: Prune=false
