@@ -152,8 +152,9 @@ spec:
               if [ -z "$cid" ] || [ -z "$csec" ]; then
                 echo "FATAL: could not parse client creds from Gitea response" >&2; exit 1
               fi
-              # Ensure the coder namespace and write the secret for Phase 3 Coder.
-              oc create namespace coder --dry-run=client -o yaml | oc apply -f - >/dev/null
+              # Ensure the coder namespace (create-only: Argo usually made it already,
+              # and this SA may only get/create namespaces, not patch them).
+              oc get namespace coder >/dev/null 2>&1 || oc create namespace coder >/dev/null
               oc create secret generic coder-gitea-oauth -n coder \
                 --from-literal=client-id="$cid" \
                 --from-literal=client-secret="$csec" \

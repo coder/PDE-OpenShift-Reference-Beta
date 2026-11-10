@@ -21,6 +21,8 @@ metadata:
   annotations:
     openshift.io/display-name: "vLLM — Qwen2.5-7B-Instruct"
     argocd.argoproj.io/sync-wave: "2"
+    # KServe CRDs only exist once the DataScienceCluster (wave 0) reconciles.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   supportedModelFormats:
     - name: vLLM

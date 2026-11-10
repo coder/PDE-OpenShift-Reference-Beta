@@ -51,7 +51,7 @@ metadata:
     # Server-side apply, scoped to this resource, with force-conflicts so Argo
     # takes ownership of spec.rbac.{defaultPolicy,policy} (defaulted by the
     # operator's field manager on creation). We only own extraConfig + rbac.
-    argocd.argoproj.io/sync-options: ServerSideApply=true,Force=true
+    argocd.argoproj.io/sync-options: ServerSideApply=true
 spec:
   extraConfig:
     oidc.config: |

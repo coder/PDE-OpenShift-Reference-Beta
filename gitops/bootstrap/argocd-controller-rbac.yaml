@@ -1,0 +1,23 @@
+# Let the default OpenShift GitOps instance manage every resource this repo ships.
+#
+# The operator gives openshift-gitops' application controller only a limited
+# cluster role, so namespaced workloads (Deployments, Routes, CNPG Clusters,
+# ExternalSecrets, ...) and cluster-scoped CRs (ClusterIssuer, ...) fail with
+# "forbidden". This is a single-tenant demo cluster whose desired state is
+# entirely this repo, so the controller gets cluster-admin.
+#
+# Applied by `task bootstrap` (not by Argo — Argo can't grant itself this).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: openshift-gitops-argocd-application-controller-cluster-admin
+  labels:
+    app.kubernetes.io/part-of: pde-openshift-reference
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: openshift-gitops-argocd-application-controller
+    namespace: openshift-gitops
